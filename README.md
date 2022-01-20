@@ -13,7 +13,21 @@ Compatibility framework for building and running Psy-Q SDK - based Playstation g
 - ISO 9660 BIN/CUE image support with Playstation CD API
 - Already proven to be *95% compatible* with the Psy-Q Playstation SDK - Psy-X game look identical to the Playstation game
 
+### Folder structure
+- `src/gpu`: GPU polygon drawing routines
+- `src/gte`: PSX GTE and PGXP-Z implementation
+- `src/render`: OpenGL renderer and PSX VRAM emulation
+- `src/pad`: Controller handling
+- `src/psx`: Implementations of PsyQ - compatible libraries (**libgte, libgpu, libspu, libcd ...**)
+- `include/psx`: Headers of PsyQ - compatible libraries (**libgte, libgpu, libspu, libcd ...**)
+- `include/PsyX`: PsyCross interfaces (**window management, configuration, renderer, PGXP-Z**)
+
+### Dependencies
+- OpenAL-soft (1.21.x or newer)
+- SDL2 (2.0.16 or newer)
+
 ## TODO
+- CMake dependency/build scripts
 - Add some missing **LibGTE** functions
 - MDEC implementation in **LibPress**
 - CD Audio/XA decoding and playback
