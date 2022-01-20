@@ -7,11 +7,11 @@ Compatibility framework for building and running Psy-Q SDK - based Playstation g
 - High-level *Playstation API* reimplementation which translates it's calls into modern/compatible APIs
 - Psy-Q - compatible headers
 - Implements Geometry Transformation Engine (GTE) in software and adapts it's macros and calls
-- *Optimized Precise GTE Vertex Cache* with modern 3D hardware perspective transform and *Z-buffer* support (PGXP-Z)
+- Optimized Precise GTE Vertex Cache with *modern 3D hardware perspective transform* and *Z-buffer* support (PGXP-Z)
 - *LibSPU* with ADPCM decoding on OpenAL (SPU-AL)
 - *LibGPU* with Playstation-style polygon and image handling
-- ISO 9660 BIN/CUE image support with Playstation CD API
-- Already proven to be *95% compatible* with the Psy-Q Playstation SDK - Psy-X game look identical to the Playstation game
+- *LibCD* with ISO 9660 BIN/CUE image support by Playstation CD API
+- Already proven to be *95% compatible* with the Psy-Q Playstation SDK - Psy-X game look almost identical to the Playstation game
 
 ### Folder structure
 - `src/gpu`: PSX GPU linked lists and polygon handling routines
