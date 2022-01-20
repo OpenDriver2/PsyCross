@@ -1,7 +1,7 @@
 # Psy-Cross (Psy-X)
 ![](https://i.ibb.co/PFNnw4G/PsyCross.jpg)
 
-Framework aiming to build and run originally targeted **Playstation** applications on other platforms based on Psy-Q SDK.
+Compatibility framework for building and running Psy-Q SDK - based Playstation games across other platforms
 
 ### Implementation details
 - High-level *Playstation API* reimplementation which translates it's calls into modern/compatible APIs
