@@ -78,9 +78,9 @@ extern int doCOP2(int op);
 
 // mtc2 9,10,11
 #define gte_ldsv( r0 ) \
-	{	MTC2((*(ushort*)((char*)r0), 9);\
-		MTC2((*(ushort*)((char*)r0 + 2), 10);\
-		MTC2((*(ushort*)((char*)r0 + 4), 11); }
+	{	MTC2(*(ushort*)((char*)r0), 9);\
+		MTC2(*(ushort*)((char*)r0 + 2), 10);\
+		MTC2(*(ushort*)((char*)r0 + 4), 11); }
 
 // mtc2 9,10
 #define gte_ldbv( r0 ) \
@@ -89,9 +89,9 @@ extern int doCOP2(int op);
 
 // mtc2 9,10,11
 #define gte_ldcv( r0 ) \
-	{	MTC2((*((char*)r0), 9);\
-		MTC2((*((char*)r0 + 1), 10);\
-		MTC2((*((char*)r0 + 2), 11); }
+	{	MTC2(*((char*)r0), 9);\
+		MTC2(*((char*)r0 + 1), 10);\
+		MTC2(*((char*)r0 + 2), 11); }
 
 // lwc2 6
 #define gte_ldrgb( r0 ) \
