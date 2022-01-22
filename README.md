@@ -12,6 +12,7 @@ Compatibility framework for building and running Psy-Q SDK - based Playstation g
 - *LibGPU* with Playstation-style polygon and image handling
 - *LibCD* with ISO 9660 BIN/CUE image support by Playstation CD API
 - Already proven to be *95% compatible* with the Psy-Q Playstation SDK - Psy-X game look almost identical to the Playstation game
+- You can bring your game to *Web with Emscripten* support
 
 ### Folder structure
 - `src/gpu`: PSX GPU linked lists and polygon handling routines
