@@ -47,13 +47,22 @@ extern "C" {
 #endif
 
 /* Mapped inputs */
-extern PsyXControllerMapping		g_controller_mapping;
-extern PsyXKeyboardMapping			g_keyboard_mapping;
+extern PsyXControllerMapping		g_cfg_controllerMapping;
+extern PsyXKeyboardMapping			g_cfg_keyboardMapping;
+extern int							g_cfg_controllerToSlotMapping[2];
 
-/* Game and debug inputs */
-extern GameDebugKeysHandlerFunc		gameDebugKeys;
-extern GameDebugMouseHandlerFunc	gameDebugMouse;
-extern GameOnTextInputHandler		gameOnTextInput;
+/* Game inputs */
+extern GameOnTextInputHandler		g_cfg_gameOnTextInput;
+
+/* Graphics configuration */
+extern int							g_cfg_swapInterval;
+extern int							g_cfg_pgxpZBuffer;
+extern int							g_cfg_bilinearFiltering;
+extern int							g_cfg_pgxpTextureCorrection;
+
+/* Debug inputs */
+extern GameDebugKeysHandlerFunc		g_dbg_gameDebugKeys;
+extern GameDebugMouseHandlerFunc	g_dbg_gameDebugMouse;
 
 /* Usually called at the beginning of main function */
 extern void PsyX_Initialise(char* windowName, int screenWidth, int screenHeight, int fullscreen);

@@ -69,20 +69,12 @@ TextureID g_lastBoundTexture = -1;
 int g_windowWidth = 0;
 int g_windowHeight = 0;
 
-int g_wireframeMode = 0;
-int g_texturelessMode = 0;
+int g_dbg_wireframeMode = 0;
+int g_dbg_texturelessMode = 0;
 
-int g_emulatorPaused = 0;
-int g_polygonSelected = 0;
-int g_pgxpTextureCorrection = 1;
-int g_pgxpZBuffer = 1;
-int g_bilinearFiltering = 0;
-
-extern int g_skipSwapInterval;
-
-// this has to be configured for each game
-float g_pgxpZNear = 0.25f;
-float g_pgxpZFar = 1000.0f;
+int g_cfg_pgxpTextureCorrection = 1;
+int g_cfg_pgxpZBuffer = 1;
+int g_cfg_bilinearFiltering = 0;
 
 int vram_need_update = 1;
 int framebuffer_need_update = 0;
@@ -513,10 +505,14 @@ void GR_Shutdown()
 #endif
 }
 
+extern int g_enableSwapInterval;
+extern int g_swapInterval;
+extern int g_skipSwapInterval;
+
 void GR_UpdateSwapIntervalState()
 {
 #if defined(RENDERER_OGL)
-	SDL_GL_SetSwapInterval((g_enableSwapInterval && !g_skipSwapInterval) ? g_swapInterval : 0);
+	SDL_GL_SetSwapInterval((g_cfg_swapInterval && g_enableSwapInterval && !g_skipSwapInterval) ? g_swapInterval : 0);
 #endif
 }
 
@@ -534,7 +530,7 @@ void GR_BeginScene()
 	GR_SetViewPort(0, 0, g_windowWidth, g_windowHeight);
 	GR_UpdateSwapIntervalState();
 
-	if (g_wireframeMode)
+	if (g_dbg_wireframeMode)
 	{
 		GR_SetWireframe(1);
 
@@ -549,7 +545,7 @@ void GR_EndScene()
 {
 	framebuffer_need_update = 1;
 	
-	if (g_wireframeMode)
+	if (g_dbg_wireframeMode)
 		GR_SetWireframe(0);
 
 #if defined(USE_OPENGL)
@@ -884,7 +880,7 @@ ShaderID GR_Shader_Compile(const char* source)
 	extra_vs_defines[0] = 0;
 	extra_fs_defines[0] = 0;
 
-	if (g_bilinearFiltering)
+	if (g_cfg_bilinearFiltering)
 	{
 		strcat(extra_fs_defines, "#define BILINEAR_FILTER\n");
 	}
@@ -967,8 +963,8 @@ TextureID GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/
 	glGenTextures(1, &newTexture);
 
 	glBindTexture(GL_TEXTURE_2D, newTexture);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -1309,7 +1305,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 		break;
 	}
 
-	if (g_texturelessMode) {
+	if (g_dbg_texturelessMode) {
 		texture = g_whiteTexture;
 	}
 
@@ -1319,7 +1315,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 
 #if defined(USE_OPENGL)
 	glBindTexture(GL_TEXTURE_2D, texture);
-	glUniform1i(u_bilinearFilterLoc, g_bilinearFiltering);
+	glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
 #endif
 
 	g_lastBoundTexture = texture;
@@ -1508,9 +1504,11 @@ void GR_SetOffscreenState(const RECT16* offscreenRect, int enable)
 #define PGXP_FOV_FACTOR 0.9265f
 
 		const float emuScreenAspect = (float)(g_windowWidth) / (float)(g_windowHeight);
-		
+		const float perspectiveZNear = 0.25f;
+		const float perspectiveZFar = 1000.0f;
+
 		GR_Ortho2D(-0.5f * emuScreenAspect * PSX_SCREEN_ASPECT, 0.5f * emuScreenAspect * PSX_SCREEN_ASPECT, 0.5f, -0.5f, -1.0f, 1.0f);
-		GR_Perspective3D(PGXP_FOV_FACTOR, 1.0f, 1.0f / (emuScreenAspect * PSX_SCREEN_ASPECT), g_pgxpZNear, g_pgxpZFar);
+		GR_Perspective3D(PGXP_FOV_FACTOR, 1.0f, 1.0f / (emuScreenAspect * PSX_SCREEN_ASPECT), perspectiveZNear, perspectiveZFar);
 #else
 		GR_Ortho2D(0, activeDispEnv.disp.w, activeDispEnv.disp.h, 0, -1.0f, 1.0f);
 #endif
@@ -1724,7 +1722,7 @@ void GR_EnableDepth(int enable)
 	g_PreviousDepthMode = enable;
 
 #if defined(USE_OPENGL)
-	if (enable && g_pgxpZBuffer)
+	if (enable && g_cfg_pgxpZBuffer)
 		glEnable(GL_DEPTH_TEST);
 	else
 		glDisable(GL_DEPTH_TEST);

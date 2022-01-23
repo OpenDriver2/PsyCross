@@ -17,11 +17,7 @@
 #include "../PsyX_main.h"
 //#include "../gpu/font.h"
 
-//#define DEBUG_POLY_COUNT
-
-#if defined(DEBUG_POLY_COUNT)
-static int polygon_count = 0;
-#endif
+int g_dbg_emulatorPaused = 0;
 
 void(*drawsync_callback)(void) = NULL;
 
@@ -415,17 +411,13 @@ void DrawOTag(u_long* p)
 			ClearSplits();
 		}
 
-#if defined(DEBUG_POLY_COUNT)
-		polygon_count = 0;
-#endif
-
 		if (activeDrawEnv.isbg)
 			ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
 
 		ParsePrimitivesToSplits(p, 0);
 
 		DrawAllSplits();
-	} while (g_emulatorPaused);
+	} while (g_dbg_emulatorPaused);
 }
 
 void DrawPrim(void* p)
@@ -443,10 +435,6 @@ void DrawPrim(void* p)
 	{
 		ClearSplits();
 	}
-
-#if defined(DEBUG_POLY_COUNT)
-	polygon_count = 0;
-#endif
 
 	if (activeDrawEnv.isbg)
 		ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);

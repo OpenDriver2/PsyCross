@@ -21,8 +21,9 @@ typedef struct
 	bool				switchingAnalog;
 } PsyXController;
 
+int						g_cfg_controllerToSlotMapping[MAX_CONTROLLERS] = { -1, -1 };
+
 PsyXController			g_controllers[MAX_CONTROLLERS];
-int						g_controllerToSlotMapping[MAX_CONTROLLERS] = { -1, -1 };
 const u_char*			g_sdlKeyboardState = NULL;
 
 u_short PsyX_Pad_UpdateKeyboardInput();
@@ -122,7 +123,7 @@ void PsyX_Pad_InitPad(int slot, u_char* padData)
 	PsyXController* controller = &g_controllers[slot];
 
 	controller->padData = padData;
-	controller->deviceId = g_controllerToSlotMapping[slot];
+	controller->deviceId = g_cfg_controllerToSlotMapping[slot];
 
 	if (padData)
 	{
@@ -294,59 +295,62 @@ void PsyX_Pad_UpdateGameControllerInput(SDL_GameController* cont, LPPADRAW pad)
 		return;
 	}
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_square) > 16384)//Square
+	// TODOL separate mapping for Pad 2
+	const PsyXControllerMapping& mapping = g_cfg_controllerMapping;
+
+	if (GetControllerButtonState(cont, mapping.gc_square) > 16384)//Square
 		ret &= ~0x8000;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_circle) > 16384)//Circle
+	if (GetControllerButtonState(cont, mapping.gc_circle) > 16384)//Circle
 		ret &= ~0x2000;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_triangle) > 16384)//Triangle
+	if (GetControllerButtonState(cont, mapping.gc_triangle) > 16384)//Triangle
 		ret &= ~0x1000;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_cross) > 16384)//Cross
+	if (GetControllerButtonState(cont, mapping.gc_cross) > 16384)//Cross
 		ret &= ~0x4000;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_l1) > 16384)//L1
+	if (GetControllerButtonState(cont, mapping.gc_l1) > 16384)//L1
 		ret &= ~0x400;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_r1) > 16384)//R1
+	if (GetControllerButtonState(cont, mapping.gc_r1) > 16384)//R1
 		ret &= ~0x800;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_l2) > 16384)//L2
+	if (GetControllerButtonState(cont, mapping.gc_l2) > 16384)//L2
 		ret &= ~0x100;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_r2) > 16384)//R2
+	if (GetControllerButtonState(cont, mapping.gc_r2) > 16384)//R2
 		ret &= ~0x200;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_dpad_up) > 16384)//UP
+	if (GetControllerButtonState(cont, mapping.gc_dpad_up) > 16384)//UP
 		ret &= ~0x10;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_dpad_down) > 16384)//DOWN
+	if (GetControllerButtonState(cont, mapping.gc_dpad_down) > 16384)//DOWN
 		ret &= ~0x40;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_dpad_left) > 16384)//LEFT
+	if (GetControllerButtonState(cont, mapping.gc_dpad_left) > 16384)//LEFT
 		ret &= ~0x80;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_dpad_right) > 16384)//RIGHT
+	if (GetControllerButtonState(cont, mapping.gc_dpad_right) > 16384)//RIGHT
 		ret &= ~0x20;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_l3) > 16384)//L3
+	if (GetControllerButtonState(cont, mapping.gc_l3) > 16384)//L3
 		ret &= ~0x2;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_r3) > 16384)//R3
+	if (GetControllerButtonState(cont, mapping.gc_r3) > 16384)//R3
 		ret &= ~0x4;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_select) > 16384)//SELECT
+	if (GetControllerButtonState(cont, mapping.gc_select) > 16384)//SELECT
 		ret &= ~0x1;
 
-	if (GetControllerButtonState(cont, g_controller_mapping.gc_start) > 16384)//START
+	if (GetControllerButtonState(cont, mapping.gc_start) > 16384)//START
 		ret &= ~0x8;
 
-	leftX = GetControllerButtonState(cont, g_controller_mapping.gc_axis_left_x);
-	leftY = GetControllerButtonState(cont, g_controller_mapping.gc_axis_left_y);
+	leftX = GetControllerButtonState(cont, mapping.gc_axis_left_x);
+	leftY = GetControllerButtonState(cont, mapping.gc_axis_left_y);
 
-	rightX = GetControllerButtonState(cont, g_controller_mapping.gc_axis_right_x);
-	rightY = GetControllerButtonState(cont, g_controller_mapping.gc_axis_right_y);
+	rightX = GetControllerButtonState(cont, mapping.gc_axis_right_x);
+	rightY = GetControllerButtonState(cont, mapping.gc_axis_right_y);
 
 	*(u_short*)pad->buttons = ret;
 
@@ -367,52 +371,54 @@ u_short PsyX_Pad_UpdateKeyboardInput()
 
 	SDL_PumpEvents();
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_square])//Square
+	const PsyXKeyboardMapping& mapping = g_cfg_keyboardMapping;
+
+	if (g_sdlKeyboardState[mapping.kc_square])//Square
 		ret &= ~0x8000;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_circle])//Circle
+	if (g_sdlKeyboardState[mapping.kc_circle])//Circle
 		ret &= ~0x2000;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_triangle])//Triangle
+	if (g_sdlKeyboardState[mapping.kc_triangle])//Triangle
 		ret &= ~0x1000;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_cross])//Cross
+	if (g_sdlKeyboardState[mapping.kc_cross])//Cross
 		ret &= ~0x4000;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_l1])//L1
+	if (g_sdlKeyboardState[mapping.kc_l1])//L1
 		ret &= ~0x400;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_l2])//L2
+	if (g_sdlKeyboardState[mapping.kc_l2])//L2
 		ret &= ~0x100;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_l3])//L3
+	if (g_sdlKeyboardState[mapping.kc_l3])//L3
 		ret &= ~0x2;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_r1])//R1
+	if (g_sdlKeyboardState[mapping.kc_r1])//R1
 		ret &= ~0x800;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_r2])//R2
+	if (g_sdlKeyboardState[mapping.kc_r2])//R2
 		ret &= ~0x200;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_r3])//R3
+	if (g_sdlKeyboardState[mapping.kc_r3])//R3
 		ret &= ~0x4;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_dpad_up])//UP
+	if (g_sdlKeyboardState[mapping.kc_dpad_up])//UP
 		ret &= ~0x10;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_dpad_down])//DOWN
+	if (g_sdlKeyboardState[mapping.kc_dpad_down])//DOWN
 		ret &= ~0x40;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_dpad_left])//LEFT
+	if (g_sdlKeyboardState[mapping.kc_dpad_left])//LEFT
 		ret &= ~0x80;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_dpad_right])//RIGHT
+	if (g_sdlKeyboardState[mapping.kc_dpad_right])//RIGHT
 		ret &= ~0x20;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_select])//SELECT
+	if (g_sdlKeyboardState[mapping.kc_select])//SELECT
 		ret &= ~0x1;
 
-	if (g_sdlKeyboardState[g_keyboard_mapping.kc_start])//START
+	if (g_sdlKeyboardState[mapping.kc_start])//START
 		ret &= ~0x8;
 
 	return ret;

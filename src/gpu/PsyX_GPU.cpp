@@ -171,7 +171,7 @@ inline void ApplyVertexPGXP(GrVertex* v, VERTTYPE* p, float ofsX, float ofsY, us
 	uint lookup = PGXP_LOOKUP_VALUE(p[0], p[1]);
 
 	PGXPVData vd;
-	if (g_pgxpTextureCorrection && PGXP_GetCacheData(&vd, lookup, gteidx))
+	if (g_cfg_pgxpTextureCorrection && PGXP_GetCacheData(&vd, lookup, gteidx))
 	{
 		float gteOfsX = vd.ofx;
 		float gteOfsY = vd.ofy;
@@ -359,7 +359,7 @@ void MakeTexcoordQuad(GrVertex* vertex, unsigned char* uv0, unsigned char* uv1, 
 	vertex[3].page = page;
 	vertex[3].clut = clut;
 	/*
-	if (g_bilinearFiltering)
+	if (g_cfg_bilinearFiltering)
 	{
 		vertex[0].tcx = -1;
 		vertex[0].tcy = -1;
@@ -404,7 +404,7 @@ void MakeTexcoordTriangle(GrVertex* vertex, unsigned char* uv0, unsigned char* u
 	vertex[2].page = page;
 	vertex[2].clut = clut;
 	/*
-	if (g_bilinearFiltering)
+	if (g_cfg_bilinearFiltering)
 	{
 		vertex[0].tcx = -1;
 		vertex[0].tcy = -1;
@@ -459,7 +459,7 @@ void MakeTexcoordRect(GrVertex* vertex, unsigned char* uv, short page, short clu
 	vertex[3].page = page;
 	vertex[3].clut = clut;
 
-	if (g_bilinearFiltering)
+	if (g_cfg_bilinearFiltering)
 	{
 		vertex[0].tcx = -1;
 		vertex[0].tcy = -1;
@@ -717,22 +717,25 @@ void DrawSplit(const GPUDrawSplit& split)
 	GR_DrawTriangles(split.startVertex, split.numVerts / 3);
 }
 
+extern int g_dbg_polygonSelected;
+
 //
 // Draws all polygons after AggregatePTAG
 //
 void DrawAllSplits()
 {
-	if (g_emulatorPaused)
+#ifdef _DEBUG
+	if (g_dbg_emulatorPaused)
 	{
 		for (int i = 0; i < 3; i++)
 		{
-			GrVertex* vert = &g_vertexBuffer[g_polygonSelected + i];
+			GrVertex* vert = &g_vertexBuffer[g_dbg_polygonSelected + i];
 			vert->r = 255;
 			vert->g = 0;
 			vert->b = 0;
 
 			eprintf("==========================================\n");
-			eprintf("POLYGON: %d\n", g_polygonSelected);
+			eprintf("POLYGON: %d\n", g_dbg_polygonSelected);
 #ifdef USE_PGXP
 			eprintf("X: %.2f Y: %.2f\n", (float)vert->x, (float)vert->y);
 			eprintf("U: %.2f V: %.2f\n", (float)vert->u, (float)vert->v);
@@ -748,6 +751,7 @@ void DrawAllSplits()
 
 		PsyX_UpdateInput();
 	}
+#endif // _DEBUG
 
 	// next code ideally should be called before EndScene
 	GR_UpdateVertexBuffer(g_vertexBuffer, g_vertexIndex);

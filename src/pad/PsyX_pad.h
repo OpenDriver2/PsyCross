@@ -8,6 +8,7 @@ extern "C" {
 extern void		PsyX_Pad_InitPad(int slot, u_char* padData);
 extern void		PsyX_Pad_Vibrate(int mtap, int slot, unsigned char* table, int len);
 extern int		PsyX_Pad_GetStatus(int mtap, int slot);
+extern void		PsyX_Pad_InternalPadUpdates();
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 }

@@ -6,6 +6,7 @@
 #include "PsyX/util/timer.h"
 
 #include "gpu/PsyX_GPU.h"
+#include "pad/PsyX_pad.h"
 
 #include "platform.h"
 #include "util/crash_handler.h"
@@ -42,15 +43,19 @@ int strcasecmp(const char* _l, const char* _r)
 #endif
 
 SDL_Window* g_window = NULL;
-
 int g_swapInterval = 1;
 int g_enableSwapInterval = 1;
 int g_skipSwapInterval = 0;
-
-PsyXKeyboardMapping g_keyboard_mapping;
-PsyXControllerMapping g_controller_mapping;
-
 timerCtx_t g_vblTimer;
+
+int							g_cfg_swapInterval = 0;
+PsyXKeyboardMapping			g_cfg_keyboardMapping;
+PsyXControllerMapping		g_cfg_controllerMapping;
+GameOnTextInputHandler		g_cfg_gameOnTextInput = NULL;
+
+GameDebugKeysHandlerFunc	g_dbg_gameDebugKeys = NULL;
+GameDebugMouseHandlerFunc	g_dbg_gameDebugMouse = NULL;
+int							g_dbg_polygonSelected = 0;
 
 enum EPsxCounters
 {
@@ -143,7 +148,6 @@ long PsyX_Sys_SetVMode(long mode)
 	return old;
 }
 
-
 int PsyX_Sys_GetVBlankCount()
 {
 	if (g_skipSwapInterval)
@@ -215,53 +219,53 @@ static int PsyX_Sys_InitialiseCore()
 
 static void PsyX_Sys_InitialiseInput()
 {
-	g_keyboard_mapping.kc_square = SDL_SCANCODE_X;
-	g_keyboard_mapping.kc_circle = SDL_SCANCODE_V;
-	g_keyboard_mapping.kc_triangle = SDL_SCANCODE_Z;
-	g_keyboard_mapping.kc_cross = SDL_SCANCODE_C;
+	g_cfg_keyboardMapping.kc_square = SDL_SCANCODE_X;
+	g_cfg_keyboardMapping.kc_circle = SDL_SCANCODE_V;
+	g_cfg_keyboardMapping.kc_triangle = SDL_SCANCODE_Z;
+	g_cfg_keyboardMapping.kc_cross = SDL_SCANCODE_C;
 
-	g_keyboard_mapping.kc_l1 = SDL_SCANCODE_LSHIFT;
-	g_keyboard_mapping.kc_l2 = SDL_SCANCODE_LCTRL;
-	g_keyboard_mapping.kc_l3 = SDL_SCANCODE_LEFTBRACKET;
+	g_cfg_keyboardMapping.kc_l1 = SDL_SCANCODE_LSHIFT;
+	g_cfg_keyboardMapping.kc_l2 = SDL_SCANCODE_LCTRL;
+	g_cfg_keyboardMapping.kc_l3 = SDL_SCANCODE_LEFTBRACKET;
 
-	g_keyboard_mapping.kc_r1 = SDL_SCANCODE_RSHIFT;
-	g_keyboard_mapping.kc_r2 = SDL_SCANCODE_RCTRL;
-	g_keyboard_mapping.kc_r3 = SDL_SCANCODE_RIGHTBRACKET;
+	g_cfg_keyboardMapping.kc_r1 = SDL_SCANCODE_RSHIFT;
+	g_cfg_keyboardMapping.kc_r2 = SDL_SCANCODE_RCTRL;
+	g_cfg_keyboardMapping.kc_r3 = SDL_SCANCODE_RIGHTBRACKET;
 
-	g_keyboard_mapping.kc_dpad_up = SDL_SCANCODE_UP;
-	g_keyboard_mapping.kc_dpad_down = SDL_SCANCODE_DOWN;
-	g_keyboard_mapping.kc_dpad_left = SDL_SCANCODE_LEFT;
-	g_keyboard_mapping.kc_dpad_right = SDL_SCANCODE_RIGHT;
+	g_cfg_keyboardMapping.kc_dpad_up = SDL_SCANCODE_UP;
+	g_cfg_keyboardMapping.kc_dpad_down = SDL_SCANCODE_DOWN;
+	g_cfg_keyboardMapping.kc_dpad_left = SDL_SCANCODE_LEFT;
+	g_cfg_keyboardMapping.kc_dpad_right = SDL_SCANCODE_RIGHT;
 
-	g_keyboard_mapping.kc_select = SDL_SCANCODE_SPACE;
-	g_keyboard_mapping.kc_start = SDL_SCANCODE_RETURN;
+	g_cfg_keyboardMapping.kc_select = SDL_SCANCODE_SPACE;
+	g_cfg_keyboardMapping.kc_start = SDL_SCANCODE_RETURN;
 
 	//----------------
-	g_controller_mapping.gc_square = SDL_CONTROLLER_BUTTON_X;
-	g_controller_mapping.gc_circle = SDL_CONTROLLER_BUTTON_B;
-	g_controller_mapping.gc_triangle = SDL_CONTROLLER_BUTTON_Y;
-	g_controller_mapping.gc_cross = SDL_CONTROLLER_BUTTON_A;
+	g_cfg_controllerMapping.gc_square = SDL_CONTROLLER_BUTTON_X;
+	g_cfg_controllerMapping.gc_circle = SDL_CONTROLLER_BUTTON_B;
+	g_cfg_controllerMapping.gc_triangle = SDL_CONTROLLER_BUTTON_Y;
+	g_cfg_controllerMapping.gc_cross = SDL_CONTROLLER_BUTTON_A;
 
-	g_controller_mapping.gc_l1 = SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
-	g_controller_mapping.gc_l2 = SDL_CONTROLLER_AXIS_TRIGGERLEFT | CONTROLLER_MAP_FLAG_AXIS;
-	g_controller_mapping.gc_l3 = SDL_CONTROLLER_BUTTON_LEFTSTICK;
+	g_cfg_controllerMapping.gc_l1 = SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
+	g_cfg_controllerMapping.gc_l2 = SDL_CONTROLLER_AXIS_TRIGGERLEFT | CONTROLLER_MAP_FLAG_AXIS;
+	g_cfg_controllerMapping.gc_l3 = SDL_CONTROLLER_BUTTON_LEFTSTICK;
 
-	g_controller_mapping.gc_r1 = SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
-	g_controller_mapping.gc_r2 = SDL_CONTROLLER_AXIS_TRIGGERRIGHT | CONTROLLER_MAP_FLAG_AXIS;
-	g_controller_mapping.gc_r3 = SDL_CONTROLLER_BUTTON_RIGHTSTICK;
+	g_cfg_controllerMapping.gc_r1 = SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
+	g_cfg_controllerMapping.gc_r2 = SDL_CONTROLLER_AXIS_TRIGGERRIGHT | CONTROLLER_MAP_FLAG_AXIS;
+	g_cfg_controllerMapping.gc_r3 = SDL_CONTROLLER_BUTTON_RIGHTSTICK;
 
-	g_controller_mapping.gc_dpad_up = SDL_CONTROLLER_BUTTON_DPAD_UP;
-	g_controller_mapping.gc_dpad_down = SDL_CONTROLLER_BUTTON_DPAD_DOWN;
-	g_controller_mapping.gc_dpad_left = SDL_CONTROLLER_BUTTON_DPAD_LEFT;
-	g_controller_mapping.gc_dpad_right = SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
+	g_cfg_controllerMapping.gc_dpad_up = SDL_CONTROLLER_BUTTON_DPAD_UP;
+	g_cfg_controllerMapping.gc_dpad_down = SDL_CONTROLLER_BUTTON_DPAD_DOWN;
+	g_cfg_controllerMapping.gc_dpad_left = SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+	g_cfg_controllerMapping.gc_dpad_right = SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
 
-	g_controller_mapping.gc_select = SDL_CONTROLLER_BUTTON_BACK;
-	g_controller_mapping.gc_start = SDL_CONTROLLER_BUTTON_START;
+	g_cfg_controllerMapping.gc_select = SDL_CONTROLLER_BUTTON_BACK;
+	g_cfg_controllerMapping.gc_start = SDL_CONTROLLER_BUTTON_START;
 
-	g_controller_mapping.gc_axis_left_x = SDL_CONTROLLER_AXIS_LEFTX | CONTROLLER_MAP_FLAG_AXIS;
-	g_controller_mapping.gc_axis_left_y = SDL_CONTROLLER_AXIS_LEFTY | CONTROLLER_MAP_FLAG_AXIS;
-	g_controller_mapping.gc_axis_right_x = SDL_CONTROLLER_AXIS_RIGHTX | CONTROLLER_MAP_FLAG_AXIS;
-	g_controller_mapping.gc_axis_right_y = SDL_CONTROLLER_AXIS_RIGHTY | CONTROLLER_MAP_FLAG_AXIS;
+	g_cfg_controllerMapping.gc_axis_left_x = SDL_CONTROLLER_AXIS_LEFTX | CONTROLLER_MAP_FLAG_AXIS;
+	g_cfg_controllerMapping.gc_axis_left_y = SDL_CONTROLLER_AXIS_LEFTY | CONTROLLER_MAP_FLAG_AXIS;
+	g_cfg_controllerMapping.gc_axis_right_x = SDL_CONTROLLER_AXIS_RIGHTX | CONTROLLER_MAP_FLAG_AXIS;
+	g_cfg_controllerMapping.gc_axis_right_y = SDL_CONTROLLER_AXIS_RIGHTY | CONTROLLER_MAP_FLAG_AXIS;
 
 	PsyX_Pad_InitSystem();
 }
@@ -673,10 +677,6 @@ void PsyX_Sys_DoDebugMouseMotion(int x, int y);
 
 void PsyX_Exit();
 
-GameDebugKeysHandlerFunc gameDebugKeys = NULL;
-GameDebugMouseHandlerFunc gameDebugMouse = NULL;
-GameOnTextInputHandler gameOnTextInput = NULL;
-
 int g_activeKeyboardControllers = 0x1;
 int g_altKeyState = 0;
 
@@ -744,9 +744,9 @@ void PsyX_Sys_DoPollEvent()
 				else if (nKey == SDL_SCANCODE_RALT)
 					nKey = SDL_SCANCODE_LALT;
 
-				if (gameOnTextInput && nKey == SDL_SCANCODE_BACKSPACE && event.type == SDL_KEYDOWN)
+				if (g_cfg_gameOnTextInput && nKey == SDL_SCANCODE_BACKSPACE && event.type == SDL_KEYDOWN)
 				{
-					(gameOnTextInput)(NULL);
+					(g_cfg_gameOnTextInput)(NULL);
 				}
 
 				PsyX_Sys_DoDebugKeys(nKey, (event.type == SDL_KEYUP) ? 0 : 1);
@@ -754,8 +754,8 @@ void PsyX_Sys_DoPollEvent()
 			}
 			case SDL_TEXTINPUT:
 			{
-				if(gameOnTextInput)
-					(gameOnTextInput)(event.text.text);
+				if(g_cfg_gameOnTextInput)
+					(g_cfg_gameOnTextInput)(event.text.text);
 				break;
 			}			
 		}
@@ -821,15 +821,14 @@ void PsyX_TakeScreenshot()
 
 void PsyX_Sys_DoDebugMouseMotion(int x, int y)
 {
-	if (gameDebugMouse)
-		gameDebugMouse(x, y);
+	if (g_dbg_gameDebugMouse)
+		g_dbg_gameDebugMouse(x, y);
 }
-
 
 void PsyX_Sys_DoDebugKeys(int nKey, char down)
 {
-	if (gameDebugKeys)
-		gameDebugKeys(nKey, down);
+	if (g_dbg_gameDebugKeys)
+		g_dbg_gameDebugKeys(nKey, down);
 
 #if 1 //def _DEBUG
 	if (nKey == SDL_SCANCODE_BACKSPACE)
@@ -847,19 +846,19 @@ void PsyX_Sys_DoDebugKeys(int nKey, char down)
 		{
 #ifdef _DEBUG
 		case SDL_SCANCODE_F1:
-			g_wireframeMode ^= 1;
-			eprintwarn("wireframe mode: %d\n", g_wireframeMode);
+			g_dbg_wireframeMode ^= 1;
+			eprintwarn("wireframe mode: %d\n", g_dbg_wireframeMode);
 			break;
 
 		case SDL_SCANCODE_F2:
-			g_texturelessMode ^= 1;
-			eprintwarn("textureless mode: %d\n", g_texturelessMode);
+			g_dbg_texturelessMode ^= 1;
+			eprintwarn("textureless mode: %d\n", g_dbg_texturelessMode);
 			break;
 		case SDL_SCANCODE_UP:
 		case SDL_SCANCODE_DOWN:
-			if (g_emulatorPaused)
+			if (g_dbg_emulatorPaused)
 			{
-				g_polygonSelected += (nKey == SDL_SCANCODE_UP) ? 3 : -3;
+				g_dbg_polygonSelected += (nKey == SDL_SCANCODE_UP) ? 3 : -3;
 			}
 			break;
 		case SDL_SCANCODE_F10:
@@ -874,8 +873,8 @@ void PsyX_Sys_DoDebugKeys(int nKey, char down)
 			break;
 #endif
 		case SDL_SCANCODE_F3:
-			g_bilinearFiltering ^= 1;
-			eprintwarn("filtering mode: %d\n", g_bilinearFiltering);
+			g_cfg_bilinearFiltering ^= 1;
+			eprintwarn("filtering mode: %d\n", g_cfg_bilinearFiltering);
 			break;
 		case SDL_SCANCODE_F4:
 
@@ -888,10 +887,10 @@ void PsyX_Sys_DoDebugKeys(int nKey, char down)
 			eprintwarn("Active keyboard controller: %d\n", g_activeKeyboardControllers);
 			break;
 		case SDL_SCANCODE_F5:
-			g_pgxpTextureCorrection ^= 1;
+			g_cfg_pgxpTextureCorrection ^= 1;
 			break;
 		case SDL_SCANCODE_F6:
-			g_pgxpZBuffer ^= 1;
+			g_cfg_pgxpZBuffer ^= 1;
 			break;
 		}
 	}
