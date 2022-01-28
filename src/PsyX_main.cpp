@@ -19,9 +19,6 @@
 #include <assert.h>
 #include <string.h>
 
-#define FIXED_TIME_STEP_NTSC		(1.0/60.0)		// 60 FPS clock
-#define FIXED_TIME_STEP_PAL			(1.0/50.0)		// 50 FPS clock
-
 #include <stdio.h>
 #include <SDL.h>
 
@@ -91,6 +88,7 @@ extern void GR_ResetDevice();
 extern void GR_Shutdown();
 extern void GR_BeginScene();
 extern void GR_EndScene();
+extern void GR_UpdateSwapIntervalState(int swapInterval);
 
 long g_vmode = -1;
 int g_frameSkip = 0;
@@ -169,8 +167,8 @@ int intrThreadMain(void* data)
 	{
 		// step counters
 		{
-			double timestep = g_vmode == MODE_NTSC ? FIXED_TIME_STEP_NTSC : FIXED_TIME_STEP_PAL;			
-			double vblDelta = Util_GetHPCTime(&g_vblTimer, 0);
+			const double timestep = g_vmode == MODE_NTSC ? FIXED_TIME_STEP_NTSC : FIXED_TIME_STEP_PAL;
+			const double vblDelta = Util_GetHPCTime(&g_vblTimer, 0);
 
 			if (vblDelta > timestep)
 			{
@@ -772,6 +770,30 @@ char PsyX_BeginScene()
 		return 0;
 
 	assert(!begin_scene_flag);
+
+	{
+		int swapInterval = (g_cfg_swapInterval && g_enableSwapInterval && !g_skipSwapInterval) ? g_swapInterval : 0;
+
+		// Maximum is (ScreenRefreshRate / 2). 
+		// If our screen refresh rate is lower than our PSX vmode refresh rate, 
+		// we reducing swap interval to maintain the framerate.
+		// Example:
+		//		target 60fps, 50hz screen = no interval (tearing)
+		//		target 30fps, 50hz screen = 60hz interval (less tearing)
+		//		target 30fps, 60hz screen = 30hz interval (no tearing)
+		SDL_DisplayMode curMode;
+		if (SDL_GetWindowDisplayMode(g_window, &curMode) == 0)
+		{
+			const int mode_frequency = g_vmode == MODE_NTSC ? VBLANK_FREQUENCY_NTSC : VBLANK_FREQUENCY_PAL;
+			if (curMode.refresh_rate < mode_frequency)
+				swapInterval--;
+		}
+
+		if (swapInterval < 0)
+			swapInterval = 0;
+		
+		GR_UpdateSwapIntervalState(swapInterval);
+	}
 
 	GR_BeginScene();
 

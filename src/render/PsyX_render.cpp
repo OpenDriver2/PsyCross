@@ -7,7 +7,6 @@
 #include "PsyX/PsyX_globals.h"
 #include "PsyX/util/timer.h"
 
-
 #include <assert.h>
 #include <string.h>
 
@@ -505,14 +504,10 @@ void GR_Shutdown()
 #endif
 }
 
-extern int g_enableSwapInterval;
-extern int g_swapInterval;
-extern int g_skipSwapInterval;
-
-void GR_UpdateSwapIntervalState()
+void GR_UpdateSwapIntervalState(int swapInterval)
 {
 #if defined(RENDERER_OGL)
-	SDL_GL_SetSwapInterval((g_cfg_swapInterval && g_enableSwapInterval && !g_skipSwapInterval) ? g_swapInterval : 0);
+	SDL_GL_SetSwapInterval(swapInterval);
 #endif
 }
 
@@ -528,7 +523,6 @@ void GR_BeginScene()
 
 	GR_UpdateVRAM();
 	GR_SetViewPort(0, 0, g_windowWidth, g_windowHeight);
-	GR_UpdateSwapIntervalState();
 
 	if (g_dbg_wireframeMode)
 	{
@@ -559,7 +553,7 @@ unsigned short vram[VRAM_WIDTH * VRAM_HEIGHT];
 
 void GR_ResetDevice()
 {
-	GR_UpdateSwapIntervalState();
+	GR_UpdateSwapIntervalState(0);
 }
 
 typedef struct
