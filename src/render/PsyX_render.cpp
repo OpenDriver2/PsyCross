@@ -1123,16 +1123,6 @@ int GR_InitialisePSX()
 	return 1;
 }
 
-void PsyX_SetSwapInterval(int interval)
-{
-	g_swapInterval = interval;
-}
-
-void PsyX_EnableSwapInterval(int enable)
-{
-	g_enableSwapInterval = enable;
-}
-
 void GR_Ortho2D(float left, float right, float bottom, float top, float znear, float zfar)
 {
 	float a = 2.0f / (right - left);

@@ -948,6 +948,16 @@ uint PsyX_CalcFPS()
 	return currentFps;
 }
 
+void PsyX_SetSwapInterval(int interval)
+{
+	g_swapInterval = interval;
+}
+
+void PsyX_EnableSwapInterval(int enable)
+{
+	g_enableSwapInterval = enable;
+}
+
 void PsyX_WaitForTimestep(int count)
 {
 #if 0 // defined(RENDERER_OGL) || defined(RENDERER_OGLES)
