@@ -83,6 +83,7 @@ u_long PadRead(int id)
 	PSYX_UNIMPLEMENTED();
 	
 	// TODO: return pad data as u_long
+	return 0;
 }
 
 void PadStop(void)

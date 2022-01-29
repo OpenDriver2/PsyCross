@@ -8,8 +8,8 @@ extern "C" {
 #define VBLANK_FREQUENCY_NTSC	60
 #define VBLANK_FREQUENCY_PAL	50
 
-#define FIXED_TIME_STEP_NTSC	(1.0/VBLANK_FREQUENCY_NTSC.0)		// 60 FPS clock
-#define FIXED_TIME_STEP_PAL		(1.0/VBLANK_FREQUENCY_PAL.0)		// 50 FPS clock
+#define FIXED_TIME_STEP_NTSC	(1.0/float(VBLANK_FREQUENCY_NTSC))		// 60 FPS clock
+#define FIXED_TIME_STEP_PAL		(1.0/float(VBLANK_FREQUENCY_PAL))		// 50 FPS clock
 
 /* runtime states */
 extern int g_windowWidth;
