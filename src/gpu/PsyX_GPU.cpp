@@ -10,12 +10,6 @@
 #include <math.h>
 #include <string.h>
 
-// Remap a value in the range [A,B] to [C,D].
-#define RemapVal( val, A, B, C, D) \
-	(C + (D - C) * (val - A) / (B - A))
-
-#define GET_TPAGE_X(tpage)      (((tpage << 6) & 0x7C0) % (VRAM_WIDTH))
-#define GET_TPAGE_Y(tpage)      (((((tpage << 4) & 0x100) + ((tpage >> 2) & 0x200))) % (VRAM_HEIGHT))
 #define GET_TPAGE_FORMAT(tpage) ((TexFormat)((tpage >> 7) & 0x3))
 #define GET_TPAGE_BLEND(tpage)  ((BlendMode)(((tpage >> 5) & 3) + 1))
 
@@ -62,34 +56,51 @@ void ClearSplits()
 	g_splits[0].texFormat = (TexFormat)0xFFFF;
 }
 
+template<class T>
+void DrawEnvDimensions(T& width, T& height)
+{
+	if (activeDrawEnv.dfe)
+	{
+		width = activeDispEnv.disp.w;
+		height = activeDispEnv.disp.h;
+	}
+	else
+	{
+		width = activeDrawEnv.clip.w;
+		height = activeDrawEnv.clip.h;
+	}
+}
+
+void DrawEnvOffset(float& ofsX, float& ofsY)
+{
+	if (activeDrawEnv.dfe)
+	{
+		int w, h;
+		DrawEnvDimensions(w, h);
+
+		// also make offset in draw dimensions range to prevent flicker
+		ofsX = activeDrawEnv.ofs[0] % w;
+		ofsY = activeDrawEnv.ofs[1] % h;
+	}
+	else
+	{
+		ofsX = 0.0f;
+		ofsY = 0.0f;
+	}
+}
+
 // remaps screen coordinates to [0..1]
 // without clamping
 inline void ScreenCoordsToEmulator(GrVertex* vertex, int count)
 {
 #ifdef USE_PGXP
-	float curW;
-	float curH;
-
-	if (activeDrawEnv.dfe)
-	{
-		curW = activeDispEnv.disp.w;
-		curH = activeDispEnv.disp.h;
-	}
-	else
-	{
-		curW = activeDrawEnv.clip.w;
-		curH = activeDrawEnv.clip.h;
-	}
+	float w, h;
+	DrawEnvDimensions(w, h);
 
 	while (count--)
 	{
-		vertex[count].x = RemapVal(vertex[count].x, 0.0f, curW, 0.0f, 1.0f);
-		vertex[count].y = RemapVal(vertex[count].y, 0.0f, curH, 0.0f, 1.0f);
-		// FIXME: what about Z?
-
-		// also center
-		vertex[count].x -= 0.5f;
-		vertex[count].y -= 0.5f;
+		vertex[count].x = vertex[count].x / w - 0.5f;
+		vertex[count].y = vertex[count].y / h - 0.5f;
 	}
 #endif
 }
@@ -112,26 +123,16 @@ void LineSwapSourceVerts(VERTTYPE*& p0, VERTTYPE*& p1, unsigned char*& c0, unsig
 
 void MakeLineArray(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, ushort gteidx)
 {
-	VERTTYPE dx = p1[0] - p0[0];
-	VERTTYPE dy = p1[1] - p0[1];
+	const VERTTYPE dx = p1[0] - p0[0];
+	const VERTTYPE dy = p1[1] - p0[1];
 
-	float ofsX;
-	float ofsY;
-
-	if (activeDrawEnv.dfe)
-	{
-		ofsX = activeDrawEnv.ofs[0] % activeDispEnv.disp.w;
-		ofsY = activeDrawEnv.ofs[1] % activeDispEnv.disp.h;
-	}
-	else
-	{
-		ofsX = 0.0f;
-		ofsY = 0.0f;
-	}
+	float ofsX, ofsY;
+	DrawEnvOffset(ofsX, ofsY);
 
 	memset(vertex, 0, sizeof(GrVertex) * 4);
 
-	if (dx > abs((short)dy)) { // horizontal
+	if (dx > abs((short)dy)) 
+	{ // horizontal
 		vertex[0].x = p0[0] + ofsX;
 		vertex[0].y = p0[1] + ofsY;
 
@@ -144,7 +145,8 @@ void MakeLineArray(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, ushort gteidx)
 		vertex[3].x = vertex[0].x;
 		vertex[3].y = vertex[0].y + 1;
 	}
-	else { // vertical
+	else 
+	{ // vertical
 		vertex[0].x = p0[0] + ofsX;
 		vertex[0].y = p0[1] + ofsY;
 
@@ -173,25 +175,19 @@ inline void ApplyVertexPGXP(GrVertex* v, VERTTYPE* p, float ofsX, float ofsY, us
 	PGXPVData vd;
 	if (g_cfg_pgxpTextureCorrection && PGXP_GetCacheData(&vd, lookup, gteidx))
 	{
-		float gteOfsX = vd.ofx;
-		float gteOfsY = vd.ofy;
-
-		// FIXME: it must be clamped strictly to the current draw buffer bounds!
-		// this is bad approach but it works for now
-		if (gteOfsX > activeDispEnv.disp.w)
-			gteOfsX -= activeDispEnv.disp.w;
-		gteOfsX -= activeDispEnv.disp.w / 2;
-
-		if (gteOfsY > activeDispEnv.disp.h)
-			gteOfsY -= activeDispEnv.disp.h;
-		gteOfsY -= activeDispEnv.disp.h / 2;
-
 		v->x = vd.px;
 		v->y = vd.py;
 		v->z = vd.pz;
-		v->ofsX = (ofsX + gteOfsX) / float(activeDispEnv.disp.w) * 2.0f;
-		v->ofsY = (ofsY + gteOfsY) / float(activeDispEnv.disp.h) * 2.0f;
 
+		// calculate offset for our perspective matrix based on supposed GTE transformed geometry offset
+		float dispW, dispH;
+		DrawEnvDimensions(dispW, dispH);
+
+		const float gteOfsX = fmodf(vd.ofx, dispW) - dispW * 0.5f;
+		const float gteOfsY = fmodf(vd.ofy, dispH) - dispH * 0.5f;
+
+		v->ofsX = (ofsX + gteOfsX) / dispW * 2.0f;
+		v->ofsY = (ofsY + gteOfsY) / dispH * 2.0f;
 		v->scr_h = vd.scr_h;
 	}
 	else
@@ -208,19 +204,8 @@ void MakeVertexTriangle(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* 
 	assert(p1);
 	assert(p2);
 
-	float ofsX;
-	float ofsY;
-
-	if (activeDrawEnv.dfe)
-	{
-		ofsX = activeDrawEnv.ofs[0] % activeDispEnv.disp.w;
-		ofsY = activeDrawEnv.ofs[1] % activeDispEnv.disp.h;
-	}
-	else
-	{
-		ofsX = 0.0f;
-		ofsY = 0.0f;
-	}
+	float ofsX, ofsY;
+	DrawEnvOffset(ofsX, ofsY);
 
 	memset(vertex, 0, sizeof(GrVertex) * 3);
 
@@ -247,19 +232,8 @@ void MakeVertexQuad(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, 
 	assert(p2);
 	assert(p3);
 
-	float ofsX;
-	float ofsY;
-
-	if (activeDrawEnv.dfe)
-	{
-		ofsX = activeDrawEnv.ofs[0] % activeDispEnv.disp.w;
-		ofsY = activeDrawEnv.ofs[1] % activeDispEnv.disp.h;
-	}
-	else
-	{
-		ofsX = 0.0f;
-		ofsY = 0.0f;
-	}
+	float ofsX, ofsY;
+	DrawEnvOffset(ofsX, ofsY);
 
 	memset(vertex, 0, sizeof(GrVertex) * 4);
 
@@ -287,19 +261,8 @@ void MakeVertexRect(GrVertex* vertex, VERTTYPE* p0, short w, short h, ushort gte
 {
 	assert(p0);
 
-	float ofsX;
-	float ofsY;
-
-	if (activeDrawEnv.dfe)
-	{
-		ofsX = activeDrawEnv.ofs[0] % activeDispEnv.disp.w;
-		ofsY = activeDrawEnv.ofs[1] % activeDispEnv.disp.h;
-	}
-	else
-	{
-		ofsX = 0.0f;
-		ofsY = 0.0f;
-	}
+	float ofsX, ofsY;
+	DrawEnvOffset(ofsX, ofsY);
 
 	memset(vertex, 0, sizeof(GrVertex) * 4);
 
@@ -532,7 +495,6 @@ void MakeTexcoordTriangleZero(GrVertex* vertex, unsigned char dither)
 	vertex[2].dither = dither;
 	vertex[2].page = 0;
 	vertex[2].clut = 0;
-
 }
 
 void MakeTexcoordQuadZero(GrVertex* vertex, unsigned char dither)
