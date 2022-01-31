@@ -592,7 +592,11 @@ GLint u_bilinearFilterLoc;
 	"	float packRG(vec2 rg) { return (rg.y * 256.0 + rg.x) * c_PackRange;}\n"
 
 #define GPU_DECODE_RG_FUNC\
-	"	vec4 decodeRG(float rg) { return fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0); }\n"
+	" vec4 decodeRG(float rg) {\n"\
+	" 	vec4 value = fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0);\n"\
+	" 	return vec4(value.xyz, rg == 0 ? rg : (1.0 - value.w * 16));\n"\
+	" }\n"
+	//"	vec4 decodeRG(float rg) { return fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0); }\n"
 
 #if defined(RENDERER_OGL) || (OGLES_VERSION == 3)
 
@@ -1751,7 +1755,10 @@ void GR_SetBlendMode(BlendMode blendMode)
 		GR_EnableDepth(1);
 		break;
 	case BM_AVERAGE:
-		glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR);
+		if(g_lastBoundTexture == g_whiteTexture)
+			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR);
+		else
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glBlendEquation(GL_FUNC_ADD);
 		GR_EnableDepth(0);
 		break;
