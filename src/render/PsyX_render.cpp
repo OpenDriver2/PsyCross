@@ -1755,10 +1755,7 @@ void GR_SetBlendMode(BlendMode blendMode)
 		GR_EnableDepth(1);
 		break;
 	case BM_AVERAGE:
-		if(g_lastBoundTexture == g_whiteTexture)
-			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR);
-		else
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glBlendEquation(GL_FUNC_ADD);
 		GR_EnableDepth(0);
 		break;
