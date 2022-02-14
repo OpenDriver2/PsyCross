@@ -730,7 +730,7 @@ extern "C" {
  */
 #ifndef _FNTPRINT_
 #define _FNTPRINT_
-extern int FntPrint(char* text, ...);
+extern int FntPrint(int id, char* fmt, ...);
 #endif /* _FNTPRINT_ */
 #ifndef _KANJIFNTPRINT_
 #define _KANJIFNTPRINT_
@@ -789,7 +789,7 @@ extern void DumpDispEnv(DISPENV *env);
 extern void DumpDrawEnv(DRAWENV *env);
 extern void DumpOTag(u_long *p);
 extern void DumpTPage(u_short tpage);
-extern void FntLoad(int tx, int ty);
+extern void FntLoad(int x, int y);
 extern void SetDispMask(int mask);
 extern void SetDrawArea(DR_AREA *p, RECT16 *r);
 extern void SetDrawEnv(DR_ENV *dr_env, DRAWENV *env);

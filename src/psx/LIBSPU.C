@@ -15,7 +15,6 @@
 #include <AL/alext.h>
 #include <AL/efx.h>
 
-
 // TODO: implement XA, implement ADSR
 
 #define SPU_CENTERNOTE (-32768 / 2)

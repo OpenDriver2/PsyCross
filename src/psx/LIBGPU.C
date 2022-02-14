@@ -15,7 +15,7 @@
 
 #include "PsyX/PsyX_globals.h"
 #include "../PsyX_main.h"
-//#include "../gpu/font.h"
+#include "../gpu/font.h"
 
 int g_dbg_emulatorPaused = 0;
 
@@ -235,10 +235,29 @@ void SetDispMask(int mask)
 	g_GPUDisabledState = (mask == 0);
 }
 
-int FntPrint(char* text, ...)
+int FntPrint(int id, char* fmt, ...)
 {
-	PSYX_UNIMPLEMENTED();
-	return 0;
+	int n;
+	va_list ap;
+
+	if (id < 0)
+		id = _nstreams - 1;
+
+	n = strlen(_stream[id].txtbuff);
+
+	if (n >= _stream[id].maxchars) {
+		return n;
+	}
+
+	va_start(ap, fmt);
+
+	n = vsnprintf(_stream[id].txtnext, _stream[id].maxchars - n, fmt, ap);
+
+	_stream[id].txtnext += n;
+
+	va_end(ap);
+
+	return strlen(_stream[id].txtbuff);
 }
 
 int GetODE(void)
@@ -487,14 +506,46 @@ void SetLineF3(LINE_F3* p)
 	setLineF3(p);
 }
 
-void FntLoad(int tx, int ty)
+void FntLoad(int x, int y)
 {
-	PSYX_UNIMPLEMENTED();
-	/*
-	g_debugFntClut = LoadClut2((u_long*)fontClutData, tx, ty + 0x80);
-	g_debugFontTpage = LoadTPage((u_long*)fontTpageData, 0, 0, tx, ty, 0x80, 0x20);
-	idx = 0;
-	memset(&fontTiles, 0, 0x180);*/
+	RECT16 pos;
+	TIM_IMAGE tim;
+
+	GetTimInfo((u_long*)dbugfont, &tim);
+
+	// Load font image
+	pos = *tim.pRECT16;
+	pos.x = x;
+	pos.y = y;
+
+	_font_tpage = getTPage(0, 0, pos.x, pos.y);
+
+	LoadImage(&pos, tim.paddr);
+	DrawSync(0);
+
+	// Load font clut
+	pos = *tim.cRECT16;
+	pos.x = x;
+	pos.y = y + tim.pRECT16->h;
+
+	_font_clut = getClut(pos.x, pos.y);
+
+	LoadImage(&pos, tim.caddr);
+	DrawSync(0);
+
+	// Clear previously opened text streams
+	if (_nstreams) {
+
+		int i;
+
+		for (i = 0; i < _nstreams; i++) {
+			free(_stream[i].txtbuff);
+			free(_stream[i].pribuff);
+		}
+
+		_nstreams = 0;
+
+	}
 }
 
 void AddPrim(void* ot, void* p)
@@ -594,8 +645,103 @@ u_long* KanjiFntFlush(int id)
 
 u_long* FntFlush(int id)
 {
-	PSYX_UNIMPLEMENTED();
-	return 0;
+	OTTYPE* opri;
+	SPRT_8* sprt;
+	DR_TPAGE* tpage;
+	char* text;
+	int			 i, sx, sy;
+
+	if (id < 0)
+		id = _nstreams - 1;
+
+	sx = _stream[id].x;
+	sy = _stream[id].y;
+
+	text = _stream[id].txtbuff;
+
+	opri = _stream[id].pribuff;
+
+	// Create TPage primitive
+	tpage = (DR_TPAGE*)opri;
+	setDrawTPage(tpage, 0, 0, _font_tpage);
+
+	// Create a black rectangle background when enabled
+	if (_stream[id].bg) {
+
+		TILE* tile;
+		opri += sizeof(DR_TPAGE);
+		tile = (TILE*)opri;
+
+		setTile(tile);
+
+		if (_stream[id].bg == 2)
+			setSemiTrans(tile, 1);
+
+		setXY0(tile, _stream[id].x, _stream[id].y);
+		setWH(tile, _stream[id].w, _stream[id].h);
+		setRGB0(tile, 0, 0, 0);
+		setaddr(tpage, tile);
+		opri = (char*)tile;
+
+		sprt = (SPRT_8*)(opri + sizeof(TILE));
+
+	}
+	else {
+
+		sprt = (SPRT_8*)(opri + sizeof(DR_TPAGE));
+
+	}
+
+	// Create the sprite primitives
+	while (*text != 0) {
+
+		if ((*text == '\n') || ((sx - _stream[id].x) > _stream[id].w - 8)) {
+			sx = _stream[id].x;
+			sy += 8;
+
+			if (*text == '\n')
+				text++;
+
+			continue;
+		}
+
+		if ((sy - _stream[id].y) > _stream[id].h - 8) {
+			break;
+		}
+
+		i = toupper(*text) - 32;
+
+		if (i > 0) {
+
+			i--;
+			setSprt8(sprt);
+			setRGB0(sprt, 128, 128, 128);
+			setXY0(sprt, sx, sy);
+			setUV0(sprt, (i % 16) << 3, (i >> 4) << 3);
+			sprt->clut = _font_clut;
+			setaddr(opri, sprt);
+			opri = (OT_TAG*)sprt;
+			sprt++;
+
+		}
+
+		sx += 8;
+		text++;
+
+	}
+
+	// Set a terminator value to the last primitive
+	termPrim(opri);
+
+	// Draw the primitives
+	DrawSync(0);
+	DrawOTag((u_long*)&(_stream[id].pribuff[0]));
+	DrawSync(0);
+
+	_stream[id].txtnext = _stream[id].txtbuff;
+	_stream[id].txtbuff[0] = 0;
+
+	return _stream[id].pribuff;
 }
 
 int KanjiFntOpen(int x, int y, int w, int h, int dx, int dy, int cx, int cy, int isbg, int n)
@@ -606,8 +752,33 @@ int KanjiFntOpen(int x, int y, int w, int h, int dx, int dy, int cx, int cy, int
 
 int FntOpen(int x, int y, int w, int h, int isbg, int n)
 {
-	PSYX_UNIMPLEMENTED();
-	return 0;
+	int i;
+
+	// Initialize a text stream
+	_stream[_nstreams].x = x;
+	_stream[_nstreams].y = y;
+	_stream[_nstreams].w = w;
+	_stream[_nstreams].h = h;
+
+	_stream[_nstreams].txtbuff = (char*)malloc(n + 1);
+
+	i = (sizeof(SPRT_8) * n) + sizeof(DR_TPAGE);
+
+	if (isbg) {
+		i += sizeof(TILE);
+	}
+
+	_stream[_nstreams].pribuff = (OTTYPE*)malloc(i);
+	_stream[_nstreams].maxchars = n;
+
+	_stream[_nstreams].txtbuff[0] = 0x0;
+	_stream[_nstreams].txtnext = _stream[_nstreams].txtbuff;
+	_stream[_nstreams].bg = isbg;
+
+	n = _nstreams;
+	_nstreams++;
+
+	return n;
 }
 
 void SetPolyF4(POLY_F4* p)
