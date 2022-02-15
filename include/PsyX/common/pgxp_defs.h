@@ -9,12 +9,15 @@
 
 //-------------------------------------
 
+//todo: this will break compatibility in VS, the VERTTYPE should never be half. short should work for all cases
 // in C++, VERTTYPE can be declared as half
-#if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
-typedef half VERTTYPE;
-#else
+//#if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
+//typedef half VERTTYPE;
+//#else
+//typedef short VERTTYPE;
+//#endif
 typedef short VERTTYPE;
-#endif
+
 
 typedef struct
 {
