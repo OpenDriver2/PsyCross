@@ -771,6 +771,13 @@ char PsyX_BeginScene()
 
 	assert(!begin_scene_flag);
 
+	if (activeDrawEnv.isbg)
+		ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
+
+#ifdef USE_PGXP
+	PGXP_ClearCache();
+#endif
+	
 	{
 		int swapInterval = (g_cfg_swapInterval && g_enableSwapInterval && !g_skipSwapInterval) ? g_swapInterval : 0;
 
@@ -800,7 +807,7 @@ char PsyX_BeginScene()
 	begin_scene_flag = 1;
 
 	PsyX_Log_Flush();
-
+	
 	return 1;
 }
 

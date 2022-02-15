@@ -730,7 +730,7 @@ extern "C" {
  */
 #ifndef _FNTPRINT_
 #define _FNTPRINT_
-extern int FntPrint(int id, char* fmt, ...);
+extern int FntPrint(char* fmt, ...);
 #endif /* _FNTPRINT_ */
 #ifndef _KANJIFNTPRINT_
 #define _KANJIFNTPRINT_
@@ -768,7 +768,7 @@ extern int SetGraphDebug(int level);
 extern int StoreImage(RECT16 *rect, u_long *p);
 extern u_long *ClearOTag(u_long *ot, int n);
 extern u_long *ClearOTagR(u_long *ot, int n);
-extern u_long *FntFlush(int id);
+extern u_long *FntFlush();
 extern u_long *KanjiFntFlush(int id);
 extern u_long DrawSyncCallback(void (*func)(void));
 extern u_short GetClut(int x, int y);

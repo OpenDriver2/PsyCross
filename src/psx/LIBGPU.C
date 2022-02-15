@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <ctype.h>
+
 
 #include "PsyX/PsyX_globals.h"
 #include "../PsyX_main.h"
@@ -67,7 +69,7 @@ int LoadImagePSX(RECT16* rect, u_long* p)
 
 int LoadImage(RECT16* rect, u_long* p)
 {
-	LoadImagePSX(rect, p);	
+	LoadImagePSX(rect, p);
 	return 0;
 }
 
@@ -78,7 +80,7 @@ int LoadImage2(RECT16* rect, u_long* p)
 	// simulate immediate mode
 	GR_UpdateVRAM();
 	GR_ReadFramebufferDataToVRAM();
-	
+
 	return 0;
 }
 
@@ -140,7 +142,7 @@ int MoveImage(RECT16* rect, int x, int y)
 
 int ResetGraph(int mode)
 {
-	if(mode == 0)
+	if (mode == 0)
 	{
 		// reset GPU state
 		g_GPUDisabledState = 0;
@@ -160,7 +162,7 @@ int ResetGraph(int mode)
 #ifdef USE_PGXP
 		PGXP_ClearCache();
 #endif
-	
+
 		PsyX_EndScene();
 	}
 	else if (mode == 3)
@@ -183,7 +185,7 @@ int StoreImage(RECT16* rect, u_long* p)
 	return 0;
 }
 
-int StoreImage2(RECT16 *RECT16, u_long *p)
+int StoreImage2(RECT16* RECT16, u_long* p)
 {
 	int result = StoreImage(RECT16, p);
 	// GPU reset?
@@ -202,7 +204,7 @@ u_long* ClearOTag(u_long* ot, int n)
 	setlen(&ot[n - P_LEN], 0);
 
 	// make a linked list with it's next items
-	for (int i = (n-1) * P_LEN; i >= 0; i -= P_LEN)
+	for (int i = (n - 1) * P_LEN; i >= 0; i -= P_LEN)
 	{
 		setaddr(&ot[i], &ot[i + P_LEN]);
 		setlen(&ot[i], 0);
@@ -235,13 +237,12 @@ void SetDispMask(int mask)
 	g_GPUDisabledState = (mask == 0);
 }
 
-int FntPrint(int id, char* fmt, ...)
+int FntPrint(char* fmt, ...)
 {
 	int n;
 	va_list ap;
 
-	if (id < 0)
-		id = _nstreams - 1;
+	int id = _nstreams - 1;
 
 	n = strlen(_stream[id].txtbuff);
 
@@ -294,7 +295,7 @@ DISPENV* SetDefDispEnv(DISPENV* env, int x, int y, int w, int h)//(F)
 
 	env->pad1 = 0;
 	env->pad0 = 0;
-	
+
 	return 0;
 }
 
@@ -349,7 +350,7 @@ void SetDrawEnv(DR_ENV* dr_env, DRAWENV* env)
 	dr_env->code[4] = ((env->dtd != 0) << 9) | ((env->dfe != 0) << 10) | env->tpage & 0x1FF | 0xE1000000;
 
 	// TODO: add missing logic when env->isbg != 0
-	
+
 	setlen(dr_env, 5);
 }
 
@@ -358,7 +359,7 @@ void SetDrawMode(DR_MODE* p, int dfe, int dtd, int tpage, RECT16* tw)
 	setDrawMode(p, dfe, dtd, tpage, tw);
 }
 
-void SetDrawArea(DR_AREA *p, RECT16 *r)
+void SetDrawArea(DR_AREA* p, RECT16* r)
 {
 	p->code[0] = (r->x & 0x3FF | ((r->y & 0x3FF) << 10)) | 0xE3000000;
 	p->code[1] = (((r->x + r->w) & 0x3FF) | (((r->y + r->h) & 0x3FF) << 10)) | 0xE4000000;
@@ -379,7 +380,7 @@ void SetDrawMove(DR_MOVE* p, RECT16* rect, int x, int y)
 	p->code[1] = 0x80000000;
 	p->code[2] = *(ulong*)&rect->x;
 	p->code[3] = y << 0x10 | x & 0xffffU;
-	p->code[4] = *(ulong *)&rect->w;
+	p->code[4] = *(ulong*)&rect->w;
 
 	setlen(p, len);
 }
@@ -414,50 +415,11 @@ void DrawOTagEnv(u_long* p, DRAWENV* env)
 
 void DrawOTag(u_long* p)
 {
-	do
-	{
-		if (g_GPUDisabledState)
-		{
-			ClearSplits();
-#ifdef USE_PGXP
-			PGXP_ClearCache();
-#endif
-			return;
-		}
-
-		if (PsyX_BeginScene())
-		{
-			ClearSplits();
-		}
-
-		if (activeDrawEnv.isbg)
-			ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
-
-		ParsePrimitivesToSplits(p, 0);
-
-		DrawAllSplits();
-	} while (g_dbg_emulatorPaused);
+	ParsePrimitivesToSplits(p, 0);
 }
 
 void DrawPrim(void* p)
 {
-	if (g_GPUDisabledState)
-	{
-		ClearSplits();
-#ifdef USE_PGXP
-		PGXP_ClearCache();
-#endif
-		return;
-	}
-
-	if (PsyX_BeginScene())
-	{
-		ClearSplits();
-	}
-
-	if (activeDrawEnv.isbg)
-		ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
-
 	ParsePrimitivesToSplits((u_long*)p, 1);
 }
 
@@ -643,16 +605,14 @@ u_long* KanjiFntFlush(int id)
 	return 0;
 }
 
-u_long* FntFlush(int id)
+u_long* FntFlush()
 {
-	OTTYPE* opri;
+	char* opri;
 	SPRT_8* sprt;
-	DR_TPAGE* tpage;
 	char* text;
 	int			 i, sx, sy;
 
-	if (id < 0)
-		id = _nstreams - 1;
+	int	id = _nstreams - 1;
 
 	sx = _stream[id].x;
 	sy = _stream[id].y;
@@ -662,8 +622,7 @@ u_long* FntFlush(int id)
 	opri = _stream[id].pribuff;
 
 	// Create TPage primitive
-	tpage = (DR_TPAGE*)opri;
-	setDrawTPage(tpage, 0, 0, _font_tpage);
+	setDrawTPage(opri, 0, 0, _font_tpage);
 
 	// Create a black rectangle background when enabled
 	if (_stream[id].bg) {
@@ -680,7 +639,7 @@ u_long* FntFlush(int id)
 		setXY0(tile, _stream[id].x, _stream[id].y);
 		setWH(tile, _stream[id].w, _stream[id].h);
 		setRGB0(tile, 0, 0, 0);
-		setaddr(tpage, tile);
+		setaddr(opri, tile);
 		opri = (char*)tile;
 
 		sprt = (SPRT_8*)(opri + sizeof(TILE));
@@ -720,7 +679,7 @@ u_long* FntFlush(int id)
 			setUV0(sprt, (i % 16) << 3, (i >> 4) << 3);
 			sprt->clut = _font_clut;
 			setaddr(opri, sprt);
-			opri = (OT_TAG*)sprt;
+			opri = (char*)sprt;
 			sprt++;
 
 		}
@@ -734,7 +693,7 @@ u_long* FntFlush(int id)
 	termPrim(opri);
 
 	// Draw the primitives
-	DrawSync(0);
+	//DrawSync(0);
 	DrawOTag((u_long*)&(_stream[id].pribuff[0]));
 	DrawSync(0);
 
@@ -768,7 +727,7 @@ int FntOpen(int x, int y, int w, int h, int isbg, int n)
 		i += sizeof(TILE);
 	}
 
-	_stream[_nstreams].pribuff = (OTTYPE*)malloc(i);
+	_stream[_nstreams].pribuff = malloc(i);
 	_stream[_nstreams].maxchars = n;
 
 	_stream[_nstreams].txtbuff[0] = 0x0;
