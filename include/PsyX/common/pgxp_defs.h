@@ -10,10 +10,13 @@
 //-------------------------------------
 
 // in C++, VERTTYPE can be declared as half
+// use `_HF` to convert to half whenever you in C mode.
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 typedef half VERTTYPE;
+#define _HF(x) x
 #else
 typedef short VERTTYPE;
+#define _HF(x) to_half_float(x)
 #endif
 
 typedef struct
@@ -69,6 +72,9 @@ typedef struct {		/* 2D short vector */
 
 #else
 typedef short VERTTYPE;
+
+#define _HF(x) x
+
 #endif
 
 

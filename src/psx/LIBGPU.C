@@ -636,8 +636,9 @@ u_long* FntFlush()
 		if (_stream[id].bg == 2)
 			setSemiTrans(tile, 1);
 
-		setXY0(tile, _stream[id].x, _stream[id].y);
-		setWH(tile, _stream[id].w, _stream[id].h);
+		setXY0(tile, _HF(_stream[id].x), _HF(_stream[id].y));
+		setWH(tile, _HF(_stream[id].w), _HF(_stream[id].h));
+
 		setRGB0(tile, 0, 0, 0);
 		setaddr(opri, tile);
 		opri = (char*)tile;
