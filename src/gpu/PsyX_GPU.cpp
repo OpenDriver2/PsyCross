@@ -54,6 +54,9 @@ void ClearSplits()
 	g_vertexIndex = 0;
 	g_splitIndex = 0;
 	g_splits[0].texFormat = (TexFormat)0xFFFF;
+#ifdef USE_PGXP
+	PGXP_ClearCache();
+#endif
 }
 
 template<class T>
@@ -722,10 +725,6 @@ void DrawAllSplits()
 		DrawSplit(g_splits[i]);
 
 	ClearSplits();
-
-#ifdef USE_PGXP
-	PGXP_ClearCache();
-#endif
 }
 
 // forward declarations
@@ -1298,12 +1297,6 @@ int ParsePrimitive(uintptr_t primPtr)
 		DR_PSYX_TEX* drtex = (DR_PSYX_TEX*)pTag;
 		break;
 	}
-	case 204: //TODO: rickomax - This seems a bit wrong, the tpage code is being stored in the len field, and enabling PG_XP bugs font display. I also don't know where dtd and dfe are
-		{
-		DR_TPAGE* drtPage = (DR_TPAGE*)pTag;
-		activeDrawEnv.tpage = drtPage->len;
-		break;
-		}
 	case 0xE0:  // DR_ENV commands
 	{
 		uint i;
@@ -1396,9 +1389,4 @@ int ParseLinkedPrimitiveList(uintptr_t packetStart, uintptr_t packetEnd)
 	g_splits[g_splitIndex].numVerts = g_vertexIndex - g_splits[g_splitIndex].startVertex;
 
 	return lastSize;
-}
-
-int toupper(int chr)
-{
-	return (chr >= 'a' && chr <= 'z') ? (chr - 32) : (chr);
 }

@@ -797,6 +797,9 @@ char PsyX_BeginScene()
 
 	GR_BeginScene();
 
+	if (activeDrawEnv.isbg)
+		ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
+
 	begin_scene_flag = 1;
 
 	PsyX_Log_Flush();
