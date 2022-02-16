@@ -145,10 +145,19 @@ unsigned char dbugfont[] = {
 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
 };
 
+
+#if defined(PSX)
+typedef unsigned long OTTYPE
+#elif defined(_M_X64) || defined(__amd64__)
+typedef OT_TAG OTTYPE;
+#else
+typedef unsigned long long OTTYPE;
+#endif
+
 typedef struct _fnt_stream {
 	char* txtbuff;
 	char* txtnext;
-	char* pribuff;
+	OTTYPE* pribuff;
 	short x, y;
 	short w, h;
 	int bg;
@@ -202,3 +211,5 @@ int GetTimInfo(const u_long* tim, TIM_IMAGE* timimg) {
 	return 0;
 
 }
+
+int toupper(int chr);
