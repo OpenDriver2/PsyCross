@@ -54,9 +54,6 @@ void ClearSplits()
 	g_vertexIndex = 0;
 	g_splitIndex = 0;
 	g_splits[0].texFormat = (TexFormat)0xFFFF;
-#ifdef USE_PGXP
-	PGXP_ClearCache();
-#endif
 }
 
 template<class T>
@@ -170,13 +167,15 @@ void MakeLineArray(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, ushort gteidx)
 	ScreenCoordsToEmulator(vertex, 4);
 }
 
-inline void ApplyVertexPGXP(GrVertex* v, VERTTYPE* p, float ofsX, float ofsY, ushort gteidx)
+inline void ApplyVertexPGXP(GrVertex* v, VERTTYPE* p, float ofsX, float ofsY, ushort gteidx, int lookupOfs)
 {
 #ifdef USE_PGXP
 	uint lookup = PGXP_LOOKUP_VALUE(p[0], p[1]);
 
 	PGXPVData vd;
-	if (g_cfg_pgxpTextureCorrection && PGXP_GetCacheData(&vd, lookup, gteidx))
+	if (gteidx != 0xffff &&
+		g_cfg_pgxpTextureCorrection && 
+		PGXP_GetCacheData(&vd, lookup, gteidx + lookupOfs))
 	{
 		v->x = vd.px;
 		v->y = vd.py;
@@ -221,9 +220,9 @@ void MakeVertexTriangle(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* 
 	vertex[2].x = p2[0] + ofsX;
 	vertex[2].y = p2[1] + ofsY;
 
-	ApplyVertexPGXP(&vertex[0], p0, ofsX, ofsY, gteidx - 2);
-	ApplyVertexPGXP(&vertex[1], p1, ofsX, ofsY, gteidx - 1);
-	ApplyVertexPGXP(&vertex[2], p2, ofsX, ofsY, gteidx);
+	ApplyVertexPGXP(&vertex[0], p0, ofsX, ofsY, gteidx, -2);
+	ApplyVertexPGXP(&vertex[1], p1, ofsX, ofsY, gteidx, -1);
+	ApplyVertexPGXP(&vertex[2], p2, ofsX, ofsY, gteidx, 0);
 
 	ScreenCoordsToEmulator(vertex, 3);
 }
@@ -252,10 +251,10 @@ void MakeVertexQuad(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, 
 	vertex[3].x = p3[0] + ofsX;
 	vertex[3].y = p3[1] + ofsY;
 
-	ApplyVertexPGXP(&vertex[0], p0, ofsX, ofsY, gteidx - 2);
-	ApplyVertexPGXP(&vertex[1], p1, ofsX, ofsY, gteidx - 2);
-	ApplyVertexPGXP(&vertex[2], p2, ofsX, ofsY, gteidx - 1);
-	ApplyVertexPGXP(&vertex[3], p3, ofsX, ofsY, gteidx);
+	ApplyVertexPGXP(&vertex[0], p0, ofsX, ofsY, gteidx, -3);
+	ApplyVertexPGXP(&vertex[1], p1, ofsX, ofsY, gteidx, -2);
+	ApplyVertexPGXP(&vertex[2], p2, ofsX, ofsY, gteidx, -1);
+	ApplyVertexPGXP(&vertex[3], p3, ofsX, ofsY, gteidx, 0);
 
 	ScreenCoordsToEmulator(vertex, 4);
 }

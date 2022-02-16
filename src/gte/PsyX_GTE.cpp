@@ -1,9 +1,11 @@
 #include "PsyX_GTE.h"
+#include "PsyX/PsyX_globals.h"
 
 #include "psx/libgte.h"
 #include "psx/gtereg.h"
 
 #include <math.h>
+
 
 GTERegisters gteRegs;
 
@@ -294,11 +296,12 @@ void PGXP_ClearCache()
 	g_pgxpVertexIndex = 0;
 }
 
-ushort PGXP_GetIndex()
+ushort PGXP_GetIndex(int checkTransform)
 {
-	if (g_pgxpTransformed)
+	if (!checkTransform || g_pgxpTransformed)
 	{
-		g_pgxpTransformed = 0;
+		if(checkTransform)
+			g_pgxpTransformed = 0;
 		return g_pgxpVertexIndex;
 	}
 
@@ -307,9 +310,14 @@ ushort PGXP_GetIndex()
 
 ushort PGXP_EmitCacheData(PGXPVData* newData)
 {
-	g_pgxpCache[g_pgxpVertexIndex++] = *newData;
+	ushort nextIndex = g_pgxpVertexIndex++;
+
+	if (nextIndex == 0xffff)
+		return 0xffff;
+
+	g_pgxpCache[nextIndex] = *newData;
 	g_pgxpTransformed = 1;
-	return g_pgxpVertexIndex;
+	return nextIndex;
 }
 
 void PGXP_SetZOffsetScale(float offset, float scale)
@@ -333,17 +341,25 @@ int PGXP_GetCacheData(PGXPVData* out, uint lookup, ushort indexhint)
 	}
 
 	// index hint allows us to start from specific index
-	ushort start = max(0, indexhint - 8);
-	ushort end = g_pgxpVertexIndex;
+	ushort index = max(0, int(indexhint) - 8);
 
-	for (ushort i = start; i < end; i++)
+	for(int i = 0; i < 512; i++)
 	{
-		if (g_pgxpCache[i].lookup == lookup)
+		if (index == 0xffff)
+			index++;
+
+		if (g_pgxpCache[index].lookup == lookup)
 		{
-			*out = g_pgxpCache[i];
+			if (i > 256)
+				PsyX_Log_Warning("PGXP_GetCacheData lookup IS inefficient: hint: %d, start: %d, found: %d, cycles: %d\n", indexhint, ushort(indexhint - 8u), index, i);
+
+			*out = g_pgxpCache[index];
 			return 1;
 		}
+		index++;
 	}
+
+	//PsyX_Log_Warning("PGXP_GetCacheData lookup IS NOT FOUND: hint: %d\n", indexhint);
 
 	out->px = 0.0f;
 	out->py = 0.0f;
@@ -415,8 +431,7 @@ int GTE_RotTransPers(int idx, int lm)
 	vdata.ofy = float(C2_OFY) / float(1 << 16);
 	vdata.scr_h = float(C2_H);
 
-	g_pgxpCache[g_pgxpVertexIndex++] = vdata;
-	g_pgxpTransformed = 1;
+	PGXP_EmitCacheData(&vdata);
 #endif
 
 	return h_over_sz3;

@@ -28,13 +28,8 @@ typedef struct
 typedef struct
 {
 	uint lookup;
-	float px;
-	float py;
-	float pz;
-
-	float scr_h;
-	float ofx;
-	float ofy;
+	float px, py, pz;
+	float scr_h, ofx, ofy;
 } PGXPVData;
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
@@ -58,7 +53,7 @@ void	PGXP_SetZOffsetScale(float offset, float scale);
 int		PGXP_GetCacheData(PGXPVData* out, uint lookup, ushort indexhint /* = 0xFFFF */);
 
 /* used by primitive setup */
-ushort	PGXP_GetIndex();
+ushort	PGXP_GetIndex(int checkTransform);
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 }

@@ -817,6 +817,10 @@ void PsyX_EndScene()
 	assert(begin_scene_flag);
 	begin_scene_flag = 0;
 
+#ifdef USE_PGXP
+	PGXP_ClearCache();
+#endif
+
 	GR_EndScene();
 	
 	GR_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
