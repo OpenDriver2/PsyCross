@@ -407,7 +407,6 @@ void DrawOTagEnv(u_long* p, DRAWENV* env)
 
 void DrawOTag(u_long* p)
 {
-	ParsePrimitivesToSplits(p, 0);
 	do
 	{
 		if (g_GPUDisabledState)
