@@ -725,7 +725,7 @@ u_long* FntFlush()
 	str->txtnext = str->txtbuff;
 	str->txtbuff[0] = 0;
 
-	return str->pribuff;
+	return (u_long*)str->pribuff;
 }
 
 int KanjiFntOpen(int x, int y, int w, int h, int dx, int dy, int cx, int cy, int isbg, int n)
@@ -752,7 +752,7 @@ int FntOpen(int x, int y, int w, int h, int isbg, int n)
 	if (isbg)
 		i += sizeof(TILE);
 
-	str->pribuff = malloc(i);
+	str->pribuff = (char*)malloc(i);
 	str->maxchars = n;
 
 	str->txtbuff = (char*)malloc(n + 1);
