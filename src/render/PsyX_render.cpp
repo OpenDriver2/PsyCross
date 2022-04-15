@@ -565,18 +565,21 @@ typedef struct
 	GLint projectionLoc;
 	GLint projection3DLoc;
 	GLint bilinearFilterLoc;
+	GLint texelSizeLoc;
 #endif
 } GTEShader;
 
 GTEShader g_gte_shader_4;
 GTEShader g_gte_shader_8;
 GTEShader g_gte_shader_16;
+GTEShader g_gte_shader_32_rgba;
 
 #if defined(USE_OPENGL)
 
 GLint u_projectionLoc;
 GLint u_projection3DLoc;
 GLint u_bilinearFilterLoc;
+GLint u_texelSizeLoc;
 
 #define GPU_PACK_RG\
 	"		float color_16 = (color_rg.y * 256.0 + color_rg.x) * 255.0;\n"
@@ -783,6 +786,24 @@ const char* gte_shader_16 =
 	GPU_FRAGMENT_SAMPLE_SHADER(16)
 	"#endif\n";
 
+const char* gte_shader_32_rgba = 
+	"varying vec4 v_texcoord;\n"
+	"varying vec4 v_color;\n"
+	"varying vec4 v_page_clut;\n"
+	"varying float v_z;\n"
+	"#ifdef VERTEX\n"
+	GTE_VERTEX_SHADER
+	"#else\n"
+	"	uniform sampler2D s_texture;\n"\
+	"	uniform int bilinearFilter;\n"\
+	"	uniform vec2 texelSize;\n"\
+	"	void main() {\n"\
+	"		vec2 tc = vec2(v_texcoord.x, v_texcoord.y) * texelSize;\n"\
+	"		fragColor = texture2D(s_texture, tc);\n"\
+	GPU_DITHERING\
+	"	}\n"
+	"#endif\n";
+
 int GR_Shader_CheckShaderStatus(GLuint shader)
 {
 	char info[1024];
@@ -963,6 +984,8 @@ TextureID GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/
 	glBindTexture(GL_TEXTURE_2D, newTexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -978,10 +1001,10 @@ void GR_CompilePSXShader(GTEShader* sh, const char* source)
 	
 	sh->bilinearFilterLoc = glGetUniformLocation(sh->shader, "bilinearFilter");
 	sh->projectionLoc = glGetUniformLocation(sh->shader, "Projection");
+	sh->texelSizeLoc = glGetUniformLocation(sh->shader, "texelSize");
 #ifdef USE_PGXP
 	sh->projection3DLoc = glGetUniformLocation(sh->shader, "Projection3D");
 #endif
-
 #endif
 }
 
@@ -990,6 +1013,7 @@ void GR_InitialisePSXShaders()
 	GR_CompilePSXShader(&g_gte_shader_4, gte_shader_4);
 	GR_CompilePSXShader(&g_gte_shader_8, gte_shader_8);
 	GR_CompilePSXShader(&g_gte_shader_16, gte_shader_16);
+	GR_CompilePSXShader(&g_gte_shader_32_rgba, gte_shader_32_rgba);
 }
 
 int GR_InitialisePSX()
@@ -1278,18 +1302,27 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 		u_bilinearFilterLoc = g_gte_shader_4.bilinearFilterLoc;
 		u_projectionLoc = g_gte_shader_4.projectionLoc;
 		u_projection3DLoc = g_gte_shader_4.projection3DLoc;
+		u_texelSizeLoc = -1;
 		break;
 	case TF_8_BIT:
 		GR_SetShader(g_gte_shader_8.shader);
 		u_bilinearFilterLoc = g_gte_shader_8.bilinearFilterLoc;
 		u_projectionLoc = g_gte_shader_8.projectionLoc;
 		u_projection3DLoc = g_gte_shader_8.projection3DLoc;
+		u_texelSizeLoc = -1;
 		break;
 	case TF_16_BIT:
 		GR_SetShader(g_gte_shader_16.shader);
 		u_bilinearFilterLoc = g_gte_shader_16.bilinearFilterLoc;
 		u_projectionLoc = g_gte_shader_16.projectionLoc;
 		u_projection3DLoc = g_gte_shader_16.projection3DLoc;
+		u_texelSizeLoc = -1;
+	case TF_32_BIT_RGBA:
+		GR_SetShader(g_gte_shader_32_rgba.shader);
+		u_bilinearFilterLoc = g_gte_shader_32_rgba.bilinearFilterLoc;
+		u_projectionLoc = g_gte_shader_32_rgba.projectionLoc;
+		u_projection3DLoc = g_gte_shader_32_rgba.projection3DLoc;
+		u_texelSizeLoc = g_gte_shader_32_rgba.texelSizeLoc;
 		break;
 	}
 
@@ -1307,6 +1340,11 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 #endif
 
 	g_lastBoundTexture = texture;
+}
+
+void GR_SetOverrideTextureSize(int width, int height)
+{
+	glUniform2f(u_texelSizeLoc, 1.0f / (float)width, 1.0f / (float)height);
 }
 
 void GR_DestroyTexture(TextureID texture)

@@ -784,8 +784,9 @@ void TermPrim(void* p)
 	termPrim(p);
 }
 
-void SetPsyXTexture(DR_PSYX_TEX* p, uint grTextureId)
+void SetPsyXTexture(DR_PSYX_TEX* p, uint grTextureId, int width, int height)
 {
-	setlen(p, 1);
+	setlen(p, 2);
 	p->code[0] = 0xB1000000 | grTextureId;
+	p->code[1] = width | (height << 16);
 }

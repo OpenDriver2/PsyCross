@@ -140,7 +140,9 @@ typedef enum
 {
 	TF_4_BIT,
 	TF_8_BIT,
-	TF_16_BIT
+	TF_16_BIT,
+
+	TF_32_BIT_RGBA		// custom texture
 } TexFormat;
 
 #define MAX_NUM_POLY_BUFFER_VERTICES (32768)
@@ -187,6 +189,7 @@ extern void			GR_SetOffscreenState(const RECT16* offscreenRect, int enable);
 extern void			GR_SetupClipMode(const RECT16* clipRect, int enable);
 extern void			GR_SetViewPort(int x, int y, int width, int height);
 extern void			GR_SetTexture(TextureID texture, TexFormat texFormat);
+extern void			GR_SetOverrideTextureSize(int width, int height);
 extern void			GR_SetWireframe(int enable);
 
 extern void			GR_DestroyTexture(TextureID texture);
