@@ -1317,6 +1317,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 		u_projectionLoc = g_gte_shader_16.projectionLoc;
 		u_projection3DLoc = g_gte_shader_16.projection3DLoc;
 		u_texelSizeLoc = -1;
+		break;
 	case TF_32_BIT_RGBA:
 		GR_SetShader(g_gte_shader_32_rgba.shader);
 		u_bilinearFilterLoc = g_gte_shader_32_rgba.bilinearFilterLoc;
