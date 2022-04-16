@@ -798,7 +798,7 @@ const char* gte_shader_32_rgba =
 	"	uniform int bilinearFilter;\n"\
 	"	uniform vec2 texelSize;\n"\
 	"	void main() {\n"\
-	"		vec2 tc = vec2(v_texcoord.x, v_texcoord.y) * texelSize;\n"\
+	"		vec2 tc = v_texcoord.xy * texelSize + texelSize * 0.5;\n"\
 	"		fragColor = texture2D(s_texture, tc);\n"\
 	GPU_DITHERING\
 	"	}\n"
@@ -984,8 +984,8 @@ TextureID GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/
 	glBindTexture(GL_TEXTURE_2D, newTexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 
 	glBindTexture(GL_TEXTURE_2D, 0);
