@@ -260,56 +260,50 @@ long RotAverageNclip4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* 
 	return opz;
 }
 
-// TODO: to INLINE_C EMULATOR macros
-
 MATRIX* MulMatrix0(MATRIX* m0, MATRIX* m1, MATRIX* m2)
 {
 #if 1
-	/*
-	// FIXME: might be wrong
-	SVECTOR t1, t2, t3;
+	// correct Psy-Q implementation
+	SVECTOR v0, r0, r1, r2;
 
 	gte_SetRotMatrix(m0);
 
-	t1.vx = m1->m[0][0];
-	t1.vy = m1->m[1][0];
-	t1.vz = m1->m[2][0];
+	v0.vx = m1->m[0][0];
+	v0.vy = m1->m[1][0];
+	v0.vz = m1->m[2][0];
 
+	gte_ldv0(&v0);
 	gte_rtv0();
-	gte_stsv(&t1);
+	gte_stsv(&r0);
 
-	t2.vx = m1->m[0][1];
-	t2.vy = m1->m[1][1];
-	t2.vz = m1->m[2][1];
-	gte_ldv0(&t2);
+	v0.vx = m1->m[0][1];
+	v0.vy = m1->m[1][1];
+	v0.vz = m1->m[2][1];
+
+	gte_ldv0(&v0);
 	gte_rtv0();
-	gte_stsv(&t2);
+	gte_stsv(&r1);
 
-	t3.vx = m1->m[0][2];
-	t3.vy = m1->m[1][2];
-	t3.vz = m1->m[2][2];
-	gte_ldv0(&t3);
+	v0.vx = m1->m[0][2];
+	v0.vy = m1->m[1][2];
+	v0.vz = m1->m[2][2];
+
+	gte_ldv0(&v0);
 	gte_rtv0();
-	gte_stsv(&t3);
+	gte_stsv(&r2);
 
-	m2->m[0][0] = t1.vx;
-	m2->m[1][0] = t1.vx;
-	m2->m[2][0] = t1.vz;
+	m2->m[0][0] = r0.vx;
+	m2->m[0][1] = r1.vx;
+	m2->m[0][2] = r2.vx;
 
-	m2->m[0][1] = t2.vz;
-	m2->m[1][1] = t2.vx;
-	m2->m[2][1] = t2.vy;
+	m2->m[1][0] = r0.vy;
+	m2->m[1][1] = r1.vy;
+	m2->m[1][2] = r2.vy;
 
-	m2->m[0][2] = t3.vy;
-	m2->m[1][2] = t3.vy;
-	m2->m[2][2] = t3.vz;
+	m2->m[2][0] = r0.vz;
+	m2->m[2][1] = r1.vz;
+	m2->m[2][2] = r2.vz;
 
-	return m1;
-	*/
-
-	gte_MulMatrix0(m0, m1, m2);
-
-	return m1;
 #else
 	/* ‚±‚ê‚Å‚àm0==m2‚ÌŽžƒ„ƒoƒC */
 	int vx, vy, vz;
