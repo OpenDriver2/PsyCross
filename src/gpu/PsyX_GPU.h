@@ -5,6 +5,7 @@
 #include "psx/libgpu.h"
 #include "psx/types.h"
 
+#include "PsyX/PsyX_config.h"
 #include "PsyX/common/pgxp_defs.h"
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)

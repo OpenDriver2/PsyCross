@@ -922,16 +922,16 @@ void SetFogNearFar(long a, long b, long h)
 
 int rsin(int a)
 {
-	//if (a < 0) // really not needed; bit mask does it all
-	//	return -rcossin_tbl[(-a & 0xfffU) * 2];
+	if (a < 0)
+		return -rcossin_tbl[(-a & 0xfffU) * 2];
 
 	return rcossin_tbl[(a & 0xfffU) * 2];
 }
 
 int rcos(int a)
 {
-	//if (a < 0) // really not needed; bit mask does it all
-	//	return rcossin_tbl[(-a & 0xfffU) * 2 + 1];
+	if (a < 0)
+		return rcossin_tbl[(-a & 0xfffU) * 2 + 1];
 
 	return rcossin_tbl[(a & 0xfffU) * 2 + 1];
 }

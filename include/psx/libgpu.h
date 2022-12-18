@@ -180,7 +180,7 @@ extern	int (*GPU_printf)(const char *fmt, ...);
   * Primitive Handling Macros
   */
 
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 
 #define isendprim(p) 		((((P_TAG *)(p))->addr) == &prim_terminator)
 #define nextPrim(p)  		(void *)(((P_TAG *)(p))->addr)
@@ -204,7 +204,7 @@ extern	int (*GPU_printf)(const char *fmt, ...);
 #define getlen(p)    		(u_char)(((P_TAG *)(p))->len)
 #define getcode(p)   		(u_char)(((P_TAG *)(p))->code)
 
-#if defined(USE_PGXP) && defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_PGXP && USE_EXTENDED_PRIM_POINTERS
 #define setpgxpindex(p, i)	(((P_TAG *)(p))->pgxp_index = (u_short)(i))
 #define addPrim(ot, p)		setaddr(p, getaddr(ot)), setaddr(ot, p), setpgxpindex(p, PGXP_GetIndex(1))
 #else
@@ -242,7 +242,7 @@ extern	int (*GPU_printf)(const char *fmt, ...);
 		((0xe1000000)|((dtd)?0x0200:0)| \
 		((dfe)?0x0400:0)|((tpage)&0x9ff))
 
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 #define setDrawTPage(p, dfe, dtd, tpage)	\
 	setlen(p, 1),	\
 	((u_long *)(p))[2] = _get_mode(dfe, dtd, tpage)
@@ -281,7 +281,7 @@ extern	int (*GPU_printf)(const char *fmt, ...);
 		((u_long *)p)[1] = 0xe6000000|(pbw?0x01:0),	\
 		((u_long *)p)[2] = 0
 
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 #define setDrawMode(p, dfe, dtd, tpage, tw) 		\
 		setlen(p, 3),					\
 		((u_long *)p)[2] = _get_mode(dfe, dtd, tpage),	\
@@ -335,7 +335,7 @@ typedef struct _RECT16 {
 
 // Psy-X custom struct to handle polygons
 
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 
 #if defined(_M_X64) || defined(__amd64__)
 

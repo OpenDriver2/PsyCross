@@ -98,7 +98,7 @@ void DrawEnvOffset(float& ofsX, float& ofsY)
 // without clamping
 inline void ScreenCoordsToEmulator(GrVertex* vertex, int count)
 {
-#ifdef USE_PGXP
+#if USE_PGXP
 	float w, h;
 	DrawEnvDimensions(w, h);
 
@@ -165,7 +165,7 @@ void MakeLineArray(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, ushort gteidx)
 		vertex[3].y = vertex[0].y;
 	} // TODO diagonal line alignment
 
-#ifdef USE_PGXP
+#if USE_PGXP
 	vertex[0].scr_h = vertex[1].scr_h = vertex[2].scr_h = vertex[3].scr_h = 0.0f;
 #endif
 
@@ -174,7 +174,7 @@ void MakeLineArray(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, ushort gteidx)
 
 inline void ApplyVertexPGXP(GrVertex* v, VERTTYPE* p, float ofsX, float ofsY, ushort gteidx, int lookupOfs)
 {
-#ifdef USE_PGXP
+#if USE_PGXP
 	uint lookup = PGXP_LOOKUP_VALUE(p[0], p[1]);
 
 	PGXPVData vd;
@@ -285,7 +285,7 @@ void MakeVertexRect(GrVertex* vertex, VERTTYPE* p0, short w, short h, ushort gte
 	vertex[3].x = vertex[0].x + w;
 	vertex[3].y = vertex[0].y;
 
-#ifdef USE_PGXP
+#if USE_PGXP
 	vertex[0].scr_h = vertex[1].scr_h = vertex[2].scr_h = vertex[3].scr_h = 0.0f;
 #endif
 
@@ -719,7 +719,7 @@ void DrawAllSplits()
 
 			eprintf("==========================================\n");
 			eprintf("POLYGON: %d\n", g_dbg_polygonSelected);
-#ifdef USE_PGXP
+#if USE_PGXP
 			eprintf("X: %.2f Y: %.2f\n", (float)vert->x, (float)vert->y);
 			eprintf("U: %.2f V: %.2f\n", (float)vert->u, (float)vert->v);
 			eprintf("TP: %d CLT: %d\n", (int)vert->page, (int)vert->clut);
@@ -759,7 +759,7 @@ void ParsePrimitivesToSplits(u_long* p, int singlePrimitive)
 
 	if (singlePrimitive)
 	{
-#if defined(USE_PGXP) && defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_PGXP && USE_EXTENDED_PRIM_POINTERS
 		P_TAG* pTag = (P_TAG*)p;
 		pTag->pgxp_index = 0xFFFF;		// force
 #endif
@@ -809,7 +809,7 @@ int ParsePrimitive(uintptr_t primPtr)
 
 	bool semi_transparent = (pTag->code & 2) != 0;
 
-#if defined(USE_PGXP) && defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_PGXP && USE_EXTENDED_PRIM_POINTERS
 	unsigned short gte_index = pTag->pgxp_index;
 #else
 	unsigned short gte_index = 0xFFFF;

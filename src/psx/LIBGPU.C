@@ -103,7 +103,7 @@ int MargePrim(void* p0, void* p1)
 	return -1;
 #endif //0
 
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 	int v0 = ((int*)p0)[1];
 	int v1 = ((int*)p1)[1];
 #else
@@ -114,13 +114,13 @@ int MargePrim(void* p0, void* p1)
 	v0 += v1;
 	v1 = v0 + 1;
 
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 	if (v1 < 0x12)
 #else
 	if (v1 < 0x11)
 #endif
 	{
-#if defined(USE_EXTENDED_PRIM_POINTERS)
+#if USE_EXTENDED_PRIM_POINTERS
 		((int*)p0)[1] = v1;
 		((int*)p1)[1] = 0;
 #else

@@ -1,6 +1,8 @@
 #ifndef EMULATOR_H
 #define EMULATOR_H
 
+#include "PsyX/PsyX_config.h"
+
 /*
  * Platform specific emulator setup
  */
@@ -20,6 +22,8 @@
 
 #if defined(RENDERER_OGL) || defined(RENDERER_OGLES)
 #   define USE_OPENGL 1
+#else
+#   define USE_OPENGL 0
 #endif
 
 #if OGLES_VERSION == 2
@@ -104,7 +108,7 @@
 #pragma pack(push,1)
 typedef struct
 {
-#if defined(USE_PGXP)
+#if USE_PGXP
 	float		x, y, page, clut;
 	float		z, scr_h, ofsX, ofsY;
 #else

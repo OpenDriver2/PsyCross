@@ -817,7 +817,7 @@ void PsyX_EndScene()
 	assert(begin_scene_flag);
 	begin_scene_flag = 0;
 
-#ifdef USE_PGXP
+#if USE_PGXP
 	PGXP_ClearCache();
 #endif
 

@@ -1,7 +1,9 @@
 #ifndef PGXP_DEFS_H
 #define PGXP_DEFS_H
 
-#ifdef USE_PGXP
+#include "PsyX/PsyX_config.h"
+
+#if USE_PGXP
 #include "PsyX/common/half_float.h"
 
 // Helpful macro

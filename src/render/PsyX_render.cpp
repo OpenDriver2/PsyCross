@@ -86,7 +86,7 @@ int framebuffer_need_update = 0;
 
 
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 typedef struct
 {
 	GLenum fmt;
@@ -455,7 +455,7 @@ int GR_InitialiseRender(char* windowName, int width, int height, int fullscreen)
 	SDL_SetHint(SDL_HINT_ALLOW_TOPMOST, "0");
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
 
 #if defined(RENDERER_OGLES)
@@ -484,7 +484,7 @@ int GR_InitialiseRender(char* windowName, int width, int height, int fullscreen)
 
 void GR_Shutdown()
 {
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glDeleteVertexArrays(2, g_glVertexArray);
 	glDeleteBuffers(2, g_glVertexBuffer);
 
@@ -515,7 +515,7 @@ void GR_BeginScene()
 {
 	g_lastBoundTexture = 0;
 
-#if defined(USE_OPENGL)	
+#if USE_OPENGL
 	glClearDepth(1.0f);
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClear(GL_STENCIL_BUFFER_BIT);
@@ -528,7 +528,7 @@ void GR_BeginScene()
 	{
 		GR_SetWireframe(1);
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 		glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 #endif
@@ -542,7 +542,7 @@ void GR_EndScene()
 	if (g_dbg_wireframeMode)
 		GR_SetWireframe(0);
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glBindVertexArray(0);
 #endif
 }
@@ -561,7 +561,7 @@ typedef struct
 	// shader itself
 	ShaderID shader;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	GLint projectionLoc;
 	GLint projection3DLoc;
 	GLint bilinearFilterLoc;
@@ -574,7 +574,7 @@ GTEShader g_gte_shader_8;
 GTEShader g_gte_shader_16;
 GTEShader g_gte_shader_32_rgba;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 
 GLint u_projectionLoc;
 GLint u_projection3DLoc;
@@ -695,7 +695,7 @@ GLint u_texelSizeLoc;
 		"	vec2 VRAM(vec2 uv) { return texture2D(s_texture, uv).rg; }\n"
 #endif
 
-#ifdef USE_PGXP
+#if USE_PGXP
 #define GTE_PERSPECTIVE_CORRECTION \
 		"	mat4 ofsMat = mat4(\n"\
 		"		vec4(1.0,  0.0,  0.0,  0.0),\n"\
@@ -937,7 +937,7 @@ ShaderID GR_Shader_Compile(const char* source)
 	glBindAttribLocation(program, a_texcoord, "a_texcoord");
 	glBindAttribLocation(program, a_color, "a_color");
 
-#ifdef USE_PGXP
+#if USE_PGXP
 	glBindAttribLocation(program, a_zw, "a_zw");
 #endif
 
@@ -962,7 +962,7 @@ void GR_GenerateCommonTextures()
 {
 	unsigned int pixelData = 0xFFFFFFFF;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glGenTextures(1, &g_whiteTexture);
 	{
 		glBindTexture(GL_TEXTURE_2D, g_whiteTexture);
@@ -997,12 +997,12 @@ void GR_CompilePSXShader(GTEShader* sh, const char* source)
 {
 	sh->shader = GR_Shader_Compile(source);
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	
 	sh->bilinearFilterLoc = glGetUniformLocation(sh->shader, "bilinearFilter");
 	sh->projectionLoc = glGetUniformLocation(sh->shader, "Projection");
 	sh->texelSizeLoc = glGetUniformLocation(sh->shader, "texelSize");
-#ifdef USE_PGXP
+#if USE_PGXP
 	sh->projection3DLoc = glGetUniformLocation(sh->shader, "Projection3D");
 #endif
 #endif
@@ -1022,7 +1022,7 @@ int GR_InitialisePSX()
 	GR_GenerateCommonTextures();
 	GR_InitialisePSXShaders();
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glDepthFunc(GL_LEQUAL);
 	glEnable(GL_STENCIL_TEST);
 	glBlendColor(0.5f, 0.5f, 0.5f, 0.25f);
@@ -1160,7 +1160,8 @@ void GR_Ortho2D(float left, float right, float bottom, float top, float znear, f
 	float x = (left + right) / (left - right);
 	float y = (bottom + top) / (bottom - top);
 
-#if defined(USE_OPENGL) // -1..1
+#if USE_OPENGL 
+	// -1..1
 	float z = (znear + zfar) / (znear - zfar);
 #endif
 
@@ -1171,7 +1172,7 @@ void GR_Ortho2D(float left, float right, float bottom, float top, float znear, f
 		x, y, z, 1
 	};
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glUniformMatrix4fv(u_projectionLoc, 1, GL_FALSE, ortho);
 #endif
 }
@@ -1192,7 +1193,7 @@ void GR_Perspective3D(const float fov, const float width, const float height, co
 		0, 0, -(2 * zFar * zNear) / (zFar - zNear), 0
 	};
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glUniformMatrix4fv(u_projection3DLoc, 1, GL_FALSE, persp);
 #endif
 }
@@ -1228,7 +1229,7 @@ void GR_SetupClipMode(const RECT16* rect, int enable)
 	// then map to screen
 	{
 		clipRectX -= 0.5f;
-#ifdef USE_PGXP
+#if USE_PGXP
 		emuScreenAspect = (float)(g_windowWidth) / (float)(g_windowHeight);
 #else
 		emuScreenAspect = (320.0f / 240.0f);
@@ -1240,7 +1241,7 @@ void GR_SetupClipMode(const RECT16* rect, int enable)
 		clipRectX += 0.5f;
 	}
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	flipOffset = g_windowHeight - clipRectH * (float)g_windowHeight;
 
 	glScissor(clipRectX * (float)g_windowWidth,
@@ -1252,7 +1253,7 @@ void GR_SetupClipMode(const RECT16* rect, int enable)
 
 void PsyX_GetPSXWidescreenMappedViewport(struct _RECT16* rect)
 {
-#ifdef USE_PGXP
+#if USE_PGXP
 	float psxScreenW, psxScreenH;
 	float emuScreenAspect;
 
@@ -1282,7 +1283,7 @@ void GR_SetShader(const ShaderID shader)
 {
 	if (g_PreviousShader != shader)
 	{
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 		glUseProgram(shader);
 #else
 #error
@@ -1335,7 +1336,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 		return;
 	}
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glBindTexture(GL_TEXTURE_2D, texture);
 	glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
 #endif
@@ -1353,7 +1354,7 @@ void GR_DestroyTexture(TextureID texture)
 	if (texture == -1)
 		return;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glDeleteTextures(1, &texture);
 #else
 #error
@@ -1388,7 +1389,7 @@ void GR_Clear(int x, int y, int w, int h, unsigned char r, unsigned char g, unsi
 {
 	framebuffer_need_update = 1;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glClearColor(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 #endif
@@ -1398,7 +1399,7 @@ void GR_SaveVRAM(const char* outputFileName, int x, int y, int width, int height
 {
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 
 #define FLIP_Y (VRAM_HEIGHT - i - 1)
 
@@ -1488,7 +1489,7 @@ void GR_ReadFramebufferDataToVRAM()
 
 	// now we can read it back to VRAM texture
 	{
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 		// reat the texture
 		glBindTexture(GL_TEXTURE_2D, g_fbTexture);
 		PBO_Download(&g_glFramebufferPBO);
@@ -1503,7 +1504,7 @@ void GR_SetScissorState(int enable)
 	if (g_PreviousScissorState == enable)
 		return;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	if (g_PreviousScissorState)
 		glDisable(GL_SCISSOR_TEST);
 	else
@@ -1517,7 +1518,7 @@ void GR_SetOffscreenState(const RECT16* offscreenRect, int enable)
 	if (enable)
 	{
 		// setup render target viewport
-#ifdef USE_PGXP
+#if USE_PGXP
 		GR_Ortho2D(-0.5f, 0.5f, 0.5f, -0.5f, -1.0f, 1.0f);
 #else
 		GR_Ortho2D(0, offscreenRect->w, offscreenRect->h, 0, -1.0f, 1.0f);
@@ -1526,7 +1527,7 @@ void GR_SetOffscreenState(const RECT16* offscreenRect, int enable)
 	else
 	{
 		// setup default viewport
-#ifdef USE_PGXP
+#if USE_PGXP
 
 		// these constants below are guessed
 		const float perspectiveFOV = 0.9265f;
@@ -1547,7 +1548,7 @@ void GR_SetOffscreenState(const RECT16* offscreenRect, int enable)
 
 	g_PreviousOffscreenState = enable;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	if (enable)
 	{
 		// set storage size first
@@ -1615,7 +1616,7 @@ void GR_SetOffscreenState(const RECT16* offscreenRect, int enable)
 
 void GR_StoreFrameBuffer(int x, int y, int w, int h)
 {
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	// set storage size first
 	if (g_PreviousFramebuffer.w != w ||
 		g_PreviousFramebuffer.h != h)
@@ -1715,7 +1716,7 @@ void GR_UpdateVRAM()
 
 	vram_need_update = 0;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	g_vramTexture = g_vramTexturesDouble[g_vramTextureIdx];
 	g_vramTextureIdx++;
 	g_vramTextureIdx &= 1;
@@ -1749,7 +1750,7 @@ void GR_EnableDepth(int enable)
 
 	g_PreviousDepthMode = enable;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	if (enable && g_cfg_pgxpZBuffer)
 		glEnable(GL_DEPTH_TEST);
 	else
@@ -1764,7 +1765,7 @@ void GR_SetStencilMode(int drawPrim)
 
 	g_PreviousStencilMode = drawPrim;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	if (drawPrim)
 	{
 		glStencilFunc(GL_ALWAYS, 1, 0x10);
@@ -1783,7 +1784,7 @@ void GR_SetBlendMode(BlendMode blendMode)
 	if (g_PreviousBlendMode == blendMode)
 		return;
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	if (g_PreviousBlendMode == BM_NONE)
 		glEnable(GL_BLEND);
 
@@ -1821,7 +1822,7 @@ void GR_SetBlendMode(BlendMode blendMode)
 
 void GR_SetPolygonOffset(float ofs)
 {
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	if (ofs == 0.0f)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
@@ -1836,7 +1837,7 @@ void GR_SetPolygonOffset(float ofs)
 
 void GR_SetViewPort(int x, int y, int width, int height)
 {
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glViewport(x, y, width, height);
 #endif
 }
@@ -1850,7 +1851,7 @@ void GR_SetWireframe(int enable)
 
 void GR_BindVertexBuffer()
 {
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glBindVertexArray(g_glVertexArray[g_curVertexBuffer]);
 
 	glEnableVertexAttribArray(a_position);
@@ -1858,7 +1859,7 @@ void GR_BindVertexBuffer()
 	glEnableVertexAttribArray(a_color);
 	glEnableVertexAttribArray(a_extra);
 
-#if defined(USE_PGXP)
+#if USE_PGXP
 	glVertexAttribPointer(a_position, 4, GL_FLOAT, GL_FALSE, sizeof(GrVertex), &((GrVertex*)NULL)->x);
 	glVertexAttribPointer(a_zw, 4, GL_FLOAT, GL_FALSE, sizeof(GrVertex), &((GrVertex*)NULL)->z);
 
@@ -1882,7 +1883,7 @@ void GR_UpdateVertexBuffer(const GrVertex* vertices, int num_vertices)
 	assert(num_vertices <= MAX_NUM_POLY_BUFFER_VERTICES);
 	GR_BindVertexBuffer();
 
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glBufferSubData(GL_ARRAY_BUFFER, 0, num_vertices * sizeof(GrVertex), vertices);
 #else
 #error
@@ -1891,7 +1892,7 @@ void GR_UpdateVertexBuffer(const GrVertex* vertices, int num_vertices)
 
 void GR_DrawTriangles(int start_vertex, int triangles)
 {
-#if defined(USE_OPENGL)
+#if USE_OPENGL
 	glDrawArrays(GL_TRIANGLES, start_vertex, triangles * 3);
 #else
 #error
