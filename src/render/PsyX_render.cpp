@@ -1394,15 +1394,17 @@ void GR_ReadFramebufferDataToVRAM()
 	h = g_PreviousFramebuffer.h;
 
 	// now we can read it back to VRAM texture
+
+#if USE_OPENGL && defined(USE_PBO)
+	// read the texture
+	if(g_glFramebufferPBO.pixels)
 	{
-#if USE_OPENGL
-		// reat the texture
 		glBindTexture(GL_TEXTURE_2D, g_fbTexture);
 		PBO_Download(&g_glFramebufferPBO);
 		glBindTexture(GL_TEXTURE_2D, 0);
 		GR_CopyRGBAFramebufferToVRAM((u_int*)g_glFramebufferPBO.pixels, x, y, w, h, 0, 0);
-#endif
 	}
+#endif
 }
 
 void GR_SetScissorState(int enable)
