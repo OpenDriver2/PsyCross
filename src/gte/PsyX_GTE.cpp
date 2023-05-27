@@ -1,10 +1,12 @@
 #include "PsyX_GTE.h"
 #include "PsyX/PsyX_globals.h"
+#include "PsyX/PsyX_public.h"
 
 #include "psx/libgte.h"
 #include "psx/gtereg.h"
 
 #include <math.h>
+
 
 
 GTERegisters gteRegs;
@@ -404,28 +406,27 @@ int GTE_RotTransPers(int idx, int lm)
 	g_FP_SXYZ0 = g_FP_SXYZ1;
 	g_FP_SXYZ1 = g_FP_SXYZ2;
 
-	// calculate projected values for cache
+	// do not perform perspective multiplication so it stays in object space
+	// perspective is performed exclusively in shader
 	PGXPVector3D temp;
-	temp.px = (double(C2_OFX) + double(float(C2_IR1) * float(h_over_sz3))) / float(1 << 16);
-	temp.py = (double(C2_OFY) + double(float(C2_IR2) * float(h_over_sz3))) / float(1 << 16);
-	temp.pz = float(max(C2_SZ3, C2_H / 2)) / float(1 << 16);
+	temp.px = fMAC1 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
+	temp.py = fMAC2 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
+	temp.pz = fMAC3 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
 
-	// make half-float equivalents
-	temp.x = temp.px;
-	temp.y = temp.py;
-	temp.z = temp.pz;
+	// calculate projected values for cache
+	temp.x = (double(C2_OFX) + double(float(C2_IR1) * float(h_over_sz3))) / float(1 << 16);
+	temp.y = (double(C2_OFY) + double(float(C2_IR2) * float(h_over_sz3))) / float(1 << 16);
+	temp.z = float(max(C2_SZ3, C2_H / 2)) / float(1 << 16);
 
 	g_FP_SXYZ2 = temp;
 
-	// do not perform perspective multiplication so it stays in object space
-	// perspective is performed exclusively in shader
 	PGXPVData vdata;
 	vdata.lookup = PGXP_LOOKUP_VALUE(temp.x, temp.y);		// hash short values
 
 	// FIXME: actually we scaling here entire geometry, is that correct?
-	vdata.px = fMAC1 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
-	vdata.py = fMAC2 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
-	vdata.pz = fMAC3 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
+	vdata.px = temp.px;
+	vdata.py = temp.py;
+	vdata.pz = temp.pz;
 
 	vdata.ofx = float(C2_OFX) / float(1 << 16);
 	vdata.ofy = float(C2_OFY) / float(1 << 16);
@@ -468,17 +469,45 @@ int GTE_operator(int op)
 #ifdef GTE_LOG
 		GTELOG("%08x NCLIP", op);
 #endif
-
 #if USE_PGXP
+
+		if(g_cfg_pgxpTextureCorrection)
 		{
-			float fSX0 = g_FP_SXYZ0.px;
-			float fSY0 = g_FP_SXYZ0.py;
+			struct fvec3 {
+				float x, y, z;
+			};
+			static auto subtractVec = [](const fvec3& u, const fvec3& v) -> fvec3 {
+				return fvec3{ u.x - v.x, u.y - v.y, u.z - v.z };
+			};
+			static auto crossProduct = [](const fvec3& u, const fvec3& v) -> fvec3 {
+				return fvec3{ u.y * v.z - v.y * u.z, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x };
+			};
+			static auto dotProduct = [](const fvec3& u, const fvec3& v) -> float {
+				return u.x * v.x + u.y * v.y + u.z * v.z;
+			};
+			static auto normalize = [](const fvec3& v) -> fvec3 {
+				const float invLen = 1.0f / sqrtf(dotProduct(v, v));
+				return fvec3{ v.x * invLen, v.y * invLen, v.z * invLen };
+			};
 
-			float fSX1 = g_FP_SXYZ1.px;
-			float fSY1 = g_FP_SXYZ1.py;
+			// treat our PGXP triangle as plane
+			const fvec3 v0 = *(fvec3*)&g_FP_SXYZ0;
+			const fvec3 v1 = *(fvec3*)&g_FP_SXYZ1;
+			const fvec3 v2 = *(fvec3*)&g_FP_SXYZ2;
+			const fvec3 normal = normalize(crossProduct(subtractVec(v2, v1), subtractVec(v0, v1)));
 
-			float fSX2 = g_FP_SXYZ2.px;
-			float fSY2 = g_FP_SXYZ2.py;
+			C2_MAC0 = dotProduct(v0, normal) < 0 ? -1 : 1;
+		}
+		else
+		{
+			float fSX0 = g_FP_SXYZ0.x;
+			float fSY0 = g_FP_SXYZ0.y;
+
+			float fSX1 = g_FP_SXYZ1.x;
+			float fSY1 = g_FP_SXYZ1.y;
+
+			float fSX2 = g_FP_SXYZ2.x;
+			float fSY2 = g_FP_SXYZ2.y;
 
 			float nclip = (fSX0 * fSY1) + (fSX1 * fSY2) + (fSX2 * fSY0) - (fSX0 * fSY2) - (fSX1 * fSY0) - (fSX2 * fSY1);
 
