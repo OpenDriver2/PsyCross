@@ -256,109 +256,17 @@ GrPBO		g_glOffscreenPBO;
 
 #endif
 
-#if defined(RENDERER_OGLES)
-EGLint majorVersion = 0, minorVersion = 0;
-EGLContext eglContext = NULL;
-EGLSurface eglSurface = NULL;
-EGLConfig eglConfig = NULL;
-EGLDisplay eglDisplay = NULL;
-int numConfigs = 0;
-
-const EGLint config16bpp[] =
-{
-#if OGLES_VERSION == 2
-		EGL_RENDERABLE_TYPE,EGL_OPENGL_ES2_BIT,
-#elif OGLES_VERSION == 3
-		EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT,
-#endif
-		EGL_BUFFER_SIZE,24,
-		EGL_RED_SIZE,8,
-		EGL_GREEN_SIZE,8,
-		EGL_BLUE_SIZE,8,
-		EGL_ALPHA_SIZE,0,
-		EGL_DEPTH_SIZE,24,
-		EGL_STENCIL_SIZE,1,
-		//EGL_SAMPLE_BUFFERS,1,
-		//EGL_SAMPLES,4,
-		EGL_NONE
-};
-
-int GR_InitialiseGLESContext(char* windowName, int fullscreen)
-{
-	unsigned int windowFlags = SDL_WINDOW_OPENGL;
-
-#if defined(__ANDROID__)
-	windowFlags |= SDL_WINDOW_FULLSCREEN;
-#endif
-
-	eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-	g_window = SDL_CreateWindow(windowName, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, g_windowWidth, g_windowHeight, windowFlags);
-
-	if (g_window == NULL)
-	{
-		eprinterr("Failed to create SDL window!\n");
-	}
-
-	if (!eglInitialize(eglDisplay, &majorVersion, &minorVersion))
-	{
-		eprinterr("eglInitialize failure! Error: %x\n", eglGetError());
-		return 0;
-	}
-
-	eglBindAPI(EGL_OPENGL_ES_API);
-
-	if (!eglChooseConfig(eglDisplay, config16bpp, &eglConfig, 1, &numConfigs))
-	{
-		printf("eglChooseConfig failed\n");
-		if (eglContext == 0)
-		{
-			printf("Error code: %d\n", eglGetError());
-		}
-	}
-
-#if !defined(__EMSCRIPTEN__) && !defined(__RPI__)
-	SDL_SysWMinfo systemInfo;
-	SDL_VERSION(&systemInfo.version);
-	SDL_GetWindowWMInfo(g_window, &systemInfo);
-#endif
-
-#if defined(__EMSCRIPTEN__)
-	EGLNativeWindowType dummyWindow;
-	eglSurface = eglCreateWindowSurface(eglDisplay, eglConfig, (EGLNativeWindowType)dummyWindow, NULL);
-#elif defined(__ANDROID__)
-	eglSurface = systemInfo.info.android.surface;
-#else
-	eglSurface = eglCreateWindowSurface(eglDisplay, eglConfig, (EGLNativeWindowType)systemInfo.info.win.window, NULL);
-#endif
-	
-	if (eglSurface == EGL_NO_SURFACE)
-	{
-		eprinterr("eglSurface failure! Error: %x\n", eglGetError());
-		return 0;
-	}
-
-	EGLint contextAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, OGLES_VERSION, EGL_NONE };
-	eglContext = eglCreateContext(eglDisplay, eglConfig, EGL_NO_CONTEXT, contextAttribs);
-
-	if (eglContext == EGL_NO_CONTEXT) {
-		eprinterr("eglContext failure! Error: %x\n", eglGetError());
-		return 0;
-	}
-
-	eglMakeCurrent(eglDisplay, eglSurface, eglSurface, eglContext);
-
-	return 1;
-}
-
-#elif defined(RENDERER_OGL)
+#if defined(RENDERER_OGL) || defined(RENDERER_OGLES)
 int GR_InitialiseGLContext(char* windowName, int fullscreen)
 {
 	int windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
 
+#if defined(__ANDROID__)
+	windowFlags |= SDL_WINDOW_FULLSCREEN;
+#else
 	if (fullscreen)
-	{
 		windowFlags |= SDL_WINDOW_FULLSCREEN;
-	}
+#endif
 
 	g_window = SDL_CreateWindow(windowName, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, g_windowWidth, g_windowHeight, windowFlags);
 
@@ -426,7 +334,7 @@ int GR_InitialiseGLContext(char* windowName, int fullscreen)
 
 int GR_InitialiseGLExt()
 {
-#ifndef __EMSCRIPTEN__
+#ifdef USE_GLAD
 	GLenum err = gladLoadGL();
 
 	if (err == 0)
@@ -458,13 +366,7 @@ int GR_InitialiseRender(char* windowName, int width, int height, int fullscreen)
 #if USE_OPENGL
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
 
-#if defined(RENDERER_OGLES)
-	if (!GR_InitialiseGLESContext(windowName, fullscreen))
-	{
-		eprinterr("Failed to Initialise GLES Context!\n");
-		return 0;
-	}
-#elif defined(RENDERER_OGL)
+#if defined(RENDERER_OGL) || defined(RENDERER_OGLES)
 	if (!GR_InitialiseGLContext(windowName, fullscreen))
 	{
 		eprinterr("Failed to Initialise GL Context!\n");
@@ -516,7 +418,11 @@ void GR_BeginScene()
 	g_lastBoundTexture = 0;
 
 #if USE_OPENGL
+#ifdef RENDERER_OGLES
+	glClearDepthf(1.0f);
+#else
 	glClearDepth(1.0f);
+#endif
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glClear(GL_STENCIL_BUFFER_BIT);
 #endif
@@ -597,7 +503,7 @@ GLint u_texelSizeLoc;
 #define GPU_DECODE_RG_FUNC\
 	" vec4 decodeRG(float rg) {\n"\
 	" 	vec4 value = fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0);\n"\
-	" 	return vec4(value.xyz, rg == 0 ? rg : (1.0 - value.w * 16));\n"\
+	" 	return vec4(value.xyz, rg == 0.0 ? rg : (1.0 - value.w * 16.0));\n"\
 	" }\n"
 	//"	vec4 decodeRG(float rg) { return fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0); }\n"
 
@@ -1488,15 +1394,17 @@ void GR_ReadFramebufferDataToVRAM()
 	h = g_PreviousFramebuffer.h;
 
 	// now we can read it back to VRAM texture
+
+#if USE_OPENGL && defined(USE_PBO)
+	// read the texture
+	if(g_glFramebufferPBO.pixels)
 	{
-#if USE_OPENGL
-		// reat the texture
 		glBindTexture(GL_TEXTURE_2D, g_fbTexture);
 		PBO_Download(&g_glFramebufferPBO);
 		glBindTexture(GL_TEXTURE_2D, 0);
 		GR_CopyRGBAFramebufferToVRAM((u_int*)g_glFramebufferPBO.pixels, x, y, w, h, 0, 0);
-#endif
 	}
+#endif
 }
 
 void GR_SetScissorState(int enable)
@@ -1734,10 +1642,8 @@ void GR_UpdateVRAM()
 
 void GR_SwapWindow()
 {
-#if defined(RENDERER_OGL)
+#if defined(RENDERER_OGL) || defined(RENDERER_OGLES)
 	SDL_GL_SwapWindow(g_window);
-#elif defined(RENDERER_OGLES)
-	eglSwapBuffers(eglDisplay, eglSurface);
 #endif
 
 	//glFinish();
