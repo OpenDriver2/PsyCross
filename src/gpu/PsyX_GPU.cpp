@@ -83,6 +83,8 @@ void DrawEnvOffset(float& ofsX, float& ofsY)
 		int w, h;
 		DrawEnvDimensions(w, h);
 
+		if (w <= 0) w = 1;
+
 		// also make offset in draw dimensions range to prevent flicker
 		ofsX = activeDrawEnv.ofs[0] % w;
 		ofsY = activeDrawEnv.ofs[1] % 256; // HACK: use half of VRAM
