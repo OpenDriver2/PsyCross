@@ -188,18 +188,21 @@ int StoreImage2(RECT16* RECT16, u_long* p)
 
 u_long* ClearOTag(u_long* ot, int n)
 {
+	OT_TAG* ptag_list;
+
 	if (n == 0)
 		return NULL;
+	ptag_list = (OT_TAG*)ot;
 
 	// last is  aspecial terminator
-	setaddr(&ot[n - P_LEN], &prim_terminator);
-	setlen(&ot[n - P_LEN], 0);
+	setaddr(&ptag_list[n-1], &prim_terminator);
+	setlen(&ptag_list[n-1], 0);
 
 	// make a linked list with it's next items
-	for (int i = (n - 1) * P_LEN; i >= 0; i -= P_LEN)
+	for (int i = (n-1); i >= 0; --i)
 	{
-		setaddr(&ot[i], &ot[i + P_LEN]);
-		setlen(&ot[i], 0);
+		setaddr(&ptag_list[i], &ptag_list[i+1]);
+		setlen(&ptag_list[i], 0);
 	}
 
 	return NULL;
@@ -207,18 +210,21 @@ u_long* ClearOTag(u_long* ot, int n)
 
 u_long* ClearOTagR(u_long* ot, int n)
 {
+	OT_TAG* ptag_list;
+
 	if (n == 0)
 		return NULL;
+	ptag_list = (OT_TAG*)ot;
 
 	// first is a special terminator
-	setaddr(ot, &prim_terminator);
-	setlen(ot, 0);
+	setaddr(ptag_list, &prim_terminator);
+	setlen(ptag_list, 0);
 
 	// initialize a linked list with it's previous items
-	for (int i = 1 * P_LEN; i < n * P_LEN; i += P_LEN)
+	for (int i = 1; i < n; ++i)
 	{
-		setaddr(&ot[i], &ot[i - P_LEN]);
-		setlen(&ot[i], 0);
+		setaddr(&ptag_list[i], &ptag_list[i-1]);
+		setlen(&ptag_list[i], 0);
 	}
 
 	return NULL;
