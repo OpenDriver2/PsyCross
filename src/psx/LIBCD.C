@@ -1012,3 +1012,18 @@ void _eCdControlF_Pause()
 {
 	g_cdSpoolerSeekCmd = -1;
 }
+
+char* CdComstr(u_char com)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+CdlCB CdReadCallback(CdlCB func)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+CdlCB CdSyncCallback(CdlCB func)
+{
+	PSYX_UNIMPLEMENTED();
+}

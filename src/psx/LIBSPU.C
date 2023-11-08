@@ -1046,3 +1046,43 @@ void SpuSetVoiceRR(int vNum, unsigned short RR)
 
 	SpuSetVoiceAttr(&attr);
 }
+
+SpuTransferCallbackProc SpuSetTransferCallback(SpuTransferCallbackProc func)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+long SpuReadDecodedData(SpuDecodedData * d_data, long flag)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+long SpuSetIRQ(long on_off)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+unsigned long SpuSetIRQAddr(unsigned long x)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc x)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+void SpuSetCommonCDMix(long cd_mix)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+void SpuSetCommonCDVolume(short cd_left, short cd_right)
+{
+	PSYX_UNIMPLEMENTED();
+}
+
+void SpuSetCommonCDReverb(long cd_reverb)
+{
+	PSYX_UNIMPLEMENTED();
+}

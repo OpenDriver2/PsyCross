@@ -796,3 +796,8 @@ void SetPsyXTexture(DR_PSYX_TEX* p, uint grTextureId, int width, int height)
 	p->code[0] = 0xB1000000 | grTextureId;
 	p->code[1] = width | (height << 16);
 }
+
+u_long* BreakDraw(void)
+{
+	PSYX_UNIMPLEMENTED();
+}
