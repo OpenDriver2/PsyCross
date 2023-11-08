@@ -720,6 +720,9 @@ typedef struct {
 extern "C" {
 #endif
 
+#if USE_EXTENDED_PRIM_POINTERS
+extern OT_TAG prim_terminator;
+#endif
 
 #ifdef LoadImage
 #undef LoadImage
