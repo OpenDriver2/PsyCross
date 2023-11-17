@@ -1419,7 +1419,7 @@ static int ProcessDrawEnv(P_TAG* polyTag)
 		}
 		case 0:
 			// proceed to next primitive tag
-			break;
+			return processedLongs;
 		}
 		++processedLongs;
 	}
@@ -1439,7 +1439,11 @@ int ParsePrimitive(P_TAG* polyTag)
 	switch (primType)
 	{
 	case 0x00:
-		if (primSubType == 0x1)
+		if (primSubType == 0x0)
+		{
+			primLength = 3;
+		}
+		else if (primSubType == 0x1)
 		{
 			DR_MOVE* drmove = (DR_MOVE*)polyTag;
 

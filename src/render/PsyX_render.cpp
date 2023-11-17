@@ -1720,6 +1720,8 @@ void GR_SetBlendMode(BlendMode blendMode)
 		glBlendEquation(GL_FUNC_ADD);
 		GR_EnableDepth(0);
 		break;
+	default:
+		eprinterr("Unsupported blend mode %d\n", blendMode);
 	}
 #endif
 
