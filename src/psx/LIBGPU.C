@@ -195,7 +195,7 @@ u_long* ClearOTag(u_long* ot, int n)
 	ptag_list = (OT_TAG*)ot;
 
 	// last is  aspecial terminator
-	setaddr(&ptag_list[n-1], &prim_terminator);
+	termPrim(&ptag_list[n-1]);
 	setlen(&ptag_list[n-1], 0);
 
 	// make a linked list with it's next items
@@ -217,7 +217,7 @@ u_long* ClearOTagR(u_long* ot, int n)
 	ptag_list = (OT_TAG*)ot;
 
 	// first is a special terminator
-	setaddr(ptag_list, &prim_terminator);
+	termPrim(ptag_list);
 	setlen(ptag_list, 0);
 
 	// initialize a linked list with it's previous items
@@ -429,7 +429,7 @@ void DrawOTag(u_long* p)
 		//if (activeDrawEnv.isbg)
 		//	ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
 
-		ParsePrimitivesToSplits(p, 0);
+		ParsePrimitivesLinkedList(p, 0);
 
 		DrawAllSplits();
 	} while (g_dbg_emulatorPaused);
@@ -451,7 +451,7 @@ void DrawPrim(void* p)
 	//if (activeDrawEnv.isbg)
 	//	ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
 
- 	ParsePrimitivesToSplits((u_long*)p, 1);
+ 	ParsePrimitivesLinkedList((u_long*)p, 1);
 }
 
 void SetSprt16(SPRT_16* p)

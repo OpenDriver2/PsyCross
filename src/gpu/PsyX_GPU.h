@@ -20,7 +20,7 @@ extern DRAWENV activeDrawEnv;
 extern int g_GPUDisabledState;
 
 void ClearSplits();
-void ParsePrimitivesToSplits(u_long* p, int singlePrimitive);
+void ParsePrimitivesLinkedList(u_long* p, int singlePrimitive);
 void DrawAllSplits();
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
