@@ -798,7 +798,16 @@ char PsyX_BeginScene()
 	GR_BeginScene();
 
 	if (activeDrawEnv.isbg)
-		ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
+	{
+		const RECT16 clipenv = activeDrawEnv.clip;
+		const u_char r = activeDrawEnv.r0;
+		const u_char g = activeDrawEnv.g0;
+		const u_char b = activeDrawEnv.b0;
+
+		// TODO: clear all affected backbuffers
+		//GR_ClearVRAM(clipenv.x, clipenv.y, clipenv.w, clipenv.h, r, g, b);
+		GR_Clear(clipenv.x, clipenv.y, clipenv.w, clipenv.h, r, g, b);
+	}
 
 	begin_scene_flag = 1;
 
