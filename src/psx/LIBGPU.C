@@ -800,4 +800,5 @@ void SetPsyXTexture(DR_PSYX_TEX* p, uint grTextureId, int width, int height)
 u_long* BreakDraw(void)
 {
 	PSYX_UNIMPLEMENTED();
+	return 0;
 }

@@ -1016,14 +1016,17 @@ void _eCdControlF_Pause()
 char* CdComstr(u_char com)
 {
 	PSYX_UNIMPLEMENTED();
+	return 0;
 }
 
 CdlCB CdReadCallback(CdlCB func)
 {
 	PSYX_UNIMPLEMENTED();
+	return 0;
 }
 
 CdlCB CdSyncCallback(CdlCB func)
 {
 	PSYX_UNIMPLEMENTED();
+	return 0;
 }
