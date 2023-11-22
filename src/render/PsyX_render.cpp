@@ -1806,3 +1806,21 @@ void GR_DrawTriangles(int start_vertex, int triangles)
 #error
 #endif
 }
+
+void GR_PushDebugLabel(const char* label)
+{
+#if USE_OPENGL
+	if (!GLAD_GL_KHR_debug)
+		return;
+	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0x8000, strlen(label), label);
+#endif
+}
+
+void GR_PopDebugLabel()
+{
+#if USE_OPENGL
+	if (!GLAD_GL_KHR_debug)
+		return;
+	glPopDebugGroup();
+#endif
+}
