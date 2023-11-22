@@ -25,6 +25,7 @@ OT_TAG prim_terminator = { -1, 0 }; // P_TAG with zero primLength
 DISPENV activeDispEnv;
 DRAWENV activeDrawEnv;
 
+static const char* currentSplitDebugText = nullptr;
 TextureID overrideTexture = 0;
 int overrideTextureWidth = 0;
 int overrideTextureHeight = 0;
@@ -46,6 +47,8 @@ struct GPUDrawSplit
 
 	u_short			startVertex;
 	u_short			numVerts;
+
+	const char*		debugText;
 };
 
 GrVertex g_vertexBuffer[MAX_NUM_POLY_BUFFER_VERTICES];
@@ -56,6 +59,7 @@ int g_splitIndex = 0;
 
 void ClearSplits()
 {
+	currentSplitDebugText = nullptr;
 	g_vertexIndex = 0;
 	g_splitIndex = 0;
 	g_splits[0].texFormat = (TexFormat)0xFFFF;
@@ -637,7 +641,7 @@ void TriangulateQuad()
 
 //------------------------------------------------------------------------------------------------------------------------
 
-void AddSplit(bool semiTrans, bool textured)
+static void AddSplit(bool semiTrans, bool textured)
 {
 	int tpage = activeDrawEnv.tpage;
 	GPUDrawSplit& curSplit = g_splits[g_splitIndex];
@@ -662,7 +666,8 @@ void AddSplit(bool semiTrans, bool textured)
 		curSplit.drawenv.clip.y == activeDrawEnv.clip.y &&
 		curSplit.drawenv.clip.w == activeDrawEnv.clip.w &&
 		curSplit.drawenv.clip.h == activeDrawEnv.clip.h &&
-		curSplit.drawenv.dfe == activeDrawEnv.dfe)
+		curSplit.drawenv.dfe == activeDrawEnv.dfe &&
+		curSplit.debugText == currentSplitDebugText)
 	{
 		return;
 	}
@@ -677,6 +682,7 @@ void AddSplit(bool semiTrans, bool textured)
 	split.drawPrimMode = g_DrawPrimMode;
 	split.drawenv = activeDrawEnv;
 	split.dispenv = activeDispEnv;
+	split.debugText = currentSplitDebugText;
 
 	split.drawenv.tw.w = overrideTextureWidth;
 	split.drawenv.tw.h = overrideTextureHeight;
@@ -687,6 +693,9 @@ void AddSplit(bool semiTrans, bool textured)
 
 void DrawSplit(const GPUDrawSplit& split)
 {
+	if(split.debugText)
+		GR_PushDebugLabel(split.debugText);
+
 	GR_SetStencilMode(split.drawPrimMode);	// draw with mask 0x16
 
 	GR_SetTexture(split.textureId, split.texFormat);
@@ -700,6 +709,9 @@ void DrawSplit(const GPUDrawSplit& split)
 	GR_SetBlendMode(split.blendMode);
 
 	GR_DrawTriangles(split.startVertex, split.numVerts / 3);
+
+	if (split.debugText)
+		GR_PopDebugLabel();
 }
 
 extern int g_dbg_polygonSelected;
@@ -1427,6 +1439,33 @@ static int ProcessDrawEnv(P_TAG* polyTag)
 	return processedLongs;
 }
 
+static int ProcessPsyXPrims(P_TAG* polyTag)
+{
+	const int primType = polyTag->code & 0xF0;
+	const int primSubType = polyTag->code & 0x0F;
+
+	switch (primSubType)
+	{
+	case 0x01:
+	{
+		DR_PSYX_TEX* psytex = (DR_PSYX_TEX*)polyTag;
+		overrideTexture = psytex->code[0] & 0xFFFFFF;
+		overrideTextureWidth = psytex->code[1] & 0xFFF;
+		overrideTextureHeight = psytex->code[1] >> 16 & 0xFFF;
+		return 2;
+	}
+	case 0x02:
+	{
+		// [A] Psy-X custom texture packet
+		DR_PSYX_DBGMARKER* psydbg = (DR_PSYX_DBGMARKER*)polyTag;
+		currentSplitDebugText = psydbg->text;
+		return 2;
+	}
+	}
+
+	return 0;
+}
+
 // Processes primitive
 // returns processed primitive primLength in longs
 int ParsePrimitive(P_TAG* polyTag)
@@ -1496,15 +1535,8 @@ int ParsePrimitive(P_TAG* polyTag)
 		primLength = 16;
 		break;
 	case 0xB0:
-		// for PsyCross, I hope nothing is at this space
-		{
-			// [A] Psy-X custom texture packet
-			DR_PSYX_TEX* psytex = (DR_PSYX_TEX*)polyTag;
-			overrideTexture = psytex->code[0] & 0xFFFFFF;
-			overrideTextureWidth = psytex->code[1] & 0xFFF;
-			overrideTextureHeight = psytex->code[1] >> 16 & 0xFFF;
-		}
-		primLength = 2;
+		// [A] Psy-X custom primitives
+		primLength = ProcessPsyXPrims(polyTag);
 		break;
 	case 0xE0:
 		// Draw Env setup

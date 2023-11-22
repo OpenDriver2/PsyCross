@@ -797,6 +797,13 @@ void SetPsyXTexture(DR_PSYX_TEX* p, uint grTextureId, int width, int height)
 	p->code[1] = width | (height << 16);
 }
 
+void SetPsyXDebugMarker(DR_PSYX_DBGMARKER* p, const char* str)
+{
+	setlen(p, 2);
+	p->code = 0xB2000000;
+	p->text = str;
+}
+
 u_long* BreakDraw(void)
 {
 	PSYX_UNIMPLEMENTED();
