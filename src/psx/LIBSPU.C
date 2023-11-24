@@ -29,20 +29,10 @@ long SpuIsTransferCompleted(long flag)
 	return 1;
 }
 
-void SpuStart()
-{
-	PsyX_SPUAL_InitSound();
-}
-
-void _SpuInit(int a0)
-{
-	ResetCallback();
-	SpuStart();
-}
-
 void SpuInit(void)
 {
-	_SpuInit(0);
+	ResetCallback();
+	PsyX_SPUAL_InitSound();
 }
 
 void SpuQuit(void)
@@ -73,7 +63,7 @@ void SpuGetAllKeysStatus(char* status)
 void SpuSetKeyOnWithAttr(SpuVoiceAttr* attr)
 {
 	SpuSetVoiceAttr(attr);
-	SpuSetKey(1, attr->voice);
+	SpuSetKey(SPU_ON, attr->voice);
 }
 
 long SpuSetMute(long on_off)
