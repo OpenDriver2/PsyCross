@@ -703,8 +703,9 @@ void DrawSplit(const GPUDrawSplit& split)
 	if (split.texFormat == TF_32_BIT_RGBA)
 		GR_SetOverrideTextureSize(split.drawenv.tw.w, split.drawenv.tw.h);
 
-	GR_SetupClipMode(&split.drawenv.clip, split.drawenv.dfe);
-	GR_SetOffscreenState(&split.drawenv.clip, !split.drawenv.dfe);
+	const bool drawOnScreen = split.drawenv.dfe;
+	GR_SetupClipMode(&split.drawenv.clip, drawOnScreen);
+	GR_SetOffscreenState(&split.drawenv.clip, !drawOnScreen);
 
 	GR_SetBlendMode(split.blendMode);
 

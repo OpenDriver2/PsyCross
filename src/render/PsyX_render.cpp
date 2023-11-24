@@ -11,6 +11,8 @@
 #include <string.h>
 
 #ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
@@ -1106,13 +1108,8 @@ void GR_Perspective3D(const float fov, const float width, const float height, co
 
 void GR_SetupClipMode(const RECT16* rect, int enable)
 {
-	float emuScreenAspect, flipOffset;
-	float psxScreenW, psxScreenH;
-	float clipRectX, clipRectY, clipRectW, clipRectH;
-	int scissorOn;
-
 	// [A] isinterlaced dirty hack for widescreen
-	scissorOn = enable && (activeDispEnv.isinter ||
+	const bool scissorOn = enable && (activeDispEnv.isinter ||
 		(	rect->x - activeDispEnv.disp.x > 0 ||
 			rect->y - activeDispEnv.disp.y > 0 ||
 			rect->w < activeDispEnv.disp.w - 1 ||
@@ -1123,37 +1120,40 @@ void GR_SetupClipMode(const RECT16* rect, int enable)
 	if (!scissorOn)
 		return;
 
-	psxScreenW = activeDispEnv.disp.w;
-	psxScreenH = activeDispEnv.disp.h;
+#if USE_PGXP
+	const float emuScreenAspect = 1.0f / (PSX_SCREEN_ASPECT * (float)g_windowWidth / (float)g_windowHeight);
+#else
+	const float emuScreenAspect = 1.0f;
+#endif
+
+	const float psxScreenWInv = 1.0f / (float)activeDispEnv.disp.w;
+	const float psxScreenHInv = 1.0f / (float)activeDispEnv.disp.h;
 
 	// first map to 0..1
-	clipRectX = (float)(rect->x - activeDispEnv.disp.x) / psxScreenW;
-	clipRectY = (float)(rect->y - activeDispEnv.disp.y) / psxScreenH;
-	clipRectW = (float)(rect->w) / psxScreenW;
-	clipRectH = (float)(rect->h) / psxScreenH;
+	float clipRectX = (float)(rect->x - activeDispEnv.disp.x) * psxScreenWInv;
+	float clipRectY = (float)(rect->y - activeDispEnv.disp.y) * psxScreenHInv;
+	float clipRectW = (float)(rect->w) * psxScreenWInv;
+	float clipRectH = (float)(rect->h) * psxScreenHInv;
 
 	// then map to screen
 	{
 		clipRectX -= 0.5f;
-#if USE_PGXP
-		emuScreenAspect = (float)(g_windowWidth) / (float)(g_windowHeight);
-#else
-		emuScreenAspect = (320.0f / 240.0f);
-#endif
 
-		clipRectX /= PSX_SCREEN_ASPECT * emuScreenAspect;
-		clipRectW /= emuScreenAspect * PSX_SCREEN_ASPECT;
+		clipRectX *= emuScreenAspect;
+		clipRectW *= emuScreenAspect;
 
 		clipRectX += 0.5f;
 	}
 
 #if USE_OPENGL
-	flipOffset = g_windowHeight - clipRectH * (float)g_windowHeight;
+	// adjust scissor rectangle by the backbuffer size (window dimensions)
+	const float flipOffset = g_windowHeight - clipRectH * (float)g_windowHeight;
+	const float crx = clipRectX * (float)g_windowWidth;
+	const float cry = clipRectY * (float)g_windowHeight;
+	const float crw = clipRectW * (float)g_windowWidth;
+	const float crh = clipRectH * (float)g_windowHeight;
 
-	glScissor(clipRectX * (float)g_windowWidth,
-		flipOffset - clipRectY * (float)g_windowHeight,
-		clipRectW * (float)g_windowWidth,
-		clipRectH * (float)g_windowHeight);
+	glScissor(crx, flipOffset - cry, crw, crh);
 #endif
 }
 
