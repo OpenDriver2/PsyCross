@@ -543,8 +543,26 @@ void MakeTexcoordQuadZero(GrVertex* vertex, unsigned char dither)
 	vertex[3].clut = 0;
 }
 
-void MakeColourLine(GrVertex* vertex, unsigned char* col0, unsigned char* col1)
+void MakeColourNoShade(GrVertex* vertex, int n)
 {
+	--n;
+	while (n >= 0)
+	{
+		vertex[n].r = 128;
+		vertex[n].g = 128;
+		vertex[n].b = 128;
+		vertex[n].a = 255;
+		--n;
+	}
+}
+
+void MakeColourLine(GrVertex* vertex, bool shadeTexOn, unsigned char* col0, unsigned char* col1)
+{
+	if (!shadeTexOn)
+	{
+		MakeColourNoShade(vertex, 4);
+		return;
+	}
 	assert(col0);
 	assert(col1);
 
@@ -569,8 +587,14 @@ void MakeColourLine(GrVertex* vertex, unsigned char* col0, unsigned char* col1)
 	vertex[3].a = 255;
 }
 
-void MakeColourTriangle(GrVertex* vertex, unsigned char* col0, unsigned char* col1, unsigned char* col2)
+void MakeColourTriangle(GrVertex* vertex, bool shadeTexOn, unsigned char* col0, unsigned char* col1, unsigned char* col2)
 {
+	if (!shadeTexOn)
+	{
+		MakeColourNoShade(vertex, 3);
+		return;
+	}
+
 	assert(col0);
 	assert(col1);
 	assert(col2);
@@ -591,8 +615,14 @@ void MakeColourTriangle(GrVertex* vertex, unsigned char* col0, unsigned char* co
 	vertex[2].a = 255;
 }
 
-void MakeColourQuad(GrVertex* vertex, unsigned char* col0, unsigned char* col1, unsigned char* col2, unsigned char* col3)
+void MakeColourQuad(GrVertex* vertex, bool shadeTexOn, unsigned char* col0, unsigned char* col1, unsigned char* col2, unsigned char* col3)
 {
+	if (!shadeTexOn)
+	{
+		MakeColourNoShade(vertex, 4);
+		return;
+	}
+
 	assert(col0);
 	assert(col1);
 	assert(col2);
@@ -838,8 +868,9 @@ static int ProcessFlatLines(P_TAG* polyTag)
 	const u_short gteIndex = 0xFFFF;
 #endif
 
+	const bool shadeTexOn = true;
 	const bool semiTrans = (polyTag->code & 2);
-	const int primSubType = polyTag->code & 0x0D;
+	const int primSubType = polyTag->code & 0x0C;
 
 	switch (primSubType)
 	{
@@ -854,10 +885,11 @@ static int ProcessFlatLines(P_TAG* polyTag)
 		unsigned char* c0 = &poly->r0;
 		unsigned char* c1 = c0;
 
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 		LineSwapSourceVerts(p0, p1, c0, c1);
-		MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-		MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+		MakeLineArray(firstVertex, p0, p1, gteIndex);
+		MakeTexcoordLineZero(firstVertex, 0);
+		MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 		TriangulateQuad();
 
@@ -880,10 +912,11 @@ static int ProcessFlatLines(P_TAG* polyTag)
 			unsigned char* c0 = &poly->r0;
 			unsigned char* c1 = c0;
 
+			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 			LineSwapSourceVerts(p0, p1, c0, c1);
-			MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-			MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-			MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+			MakeLineArray(firstVertex, p0, p1, gteIndex);
+			MakeTexcoordLineZero(firstVertex, 0);
+			MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 			TriangulateQuad();
 
@@ -899,10 +932,11 @@ static int ProcessFlatLines(P_TAG* polyTag)
 			unsigned char* c0 = &poly->r0;
 			unsigned char* c1 = c0;
 
+			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 			LineSwapSourceVerts(p0, p1, c0, c1);
-			MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-			MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-			MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+			MakeLineArray(firstVertex, p0, p1, gteIndex);
+			MakeTexcoordLineZero(firstVertex, 0);
+			MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 			TriangulateQuad();
 
@@ -927,10 +961,11 @@ static int ProcessFlatLines(P_TAG* polyTag)
 			unsigned char* c0 = &poly->r0;
 			unsigned char* c1 = c0;
 
+			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 			LineSwapSourceVerts(p0, p1, c0, c1);
-			MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-			MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-			MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+			MakeLineArray(firstVertex, p0, p1, gteIndex);
+			MakeTexcoordLineZero(firstVertex, 0);
+			MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 			TriangulateQuad();
 
@@ -946,10 +981,11 @@ static int ProcessFlatLines(P_TAG* polyTag)
 			unsigned char* c0 = &poly->r0;
 			unsigned char* c1 = c0;
 
+			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 			LineSwapSourceVerts(p0, p1, c0, c1);
-			MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-			MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-			MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+			MakeLineArray(firstVertex, p0, p1, gteIndex);
+			MakeTexcoordLineZero(firstVertex, 0);
+			MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 			TriangulateQuad();
 
@@ -965,10 +1001,11 @@ static int ProcessFlatLines(P_TAG* polyTag)
 			unsigned char* c0 = &poly->r0;
 			unsigned char* c1 = c0;
 
+			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 			LineSwapSourceVerts(p0, p1, c0, c1);
-			MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-			MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-			MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+			MakeLineArray(firstVertex, p0, p1, gteIndex);
+			MakeTexcoordLineZero(firstVertex, 0);
+			MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 			TriangulateQuad();
 
@@ -992,8 +1029,9 @@ static int ProcessGouraudLines(P_TAG* polyTag)
 	const u_short gteIndex = 0xFFFF;
 #endif
 
+	const bool shadeTexOn = true;
 	const bool semiTrans = (polyTag->code & 2);
-	const int primSubType = polyTag->code & 0x0D;
+	const int primSubType = polyTag->code & 0x0C;
 
 	switch (primSubType)
 	{
@@ -1008,10 +1046,11 @@ static int ProcessGouraudLines(P_TAG* polyTag)
 		unsigned char* c0 = &poly->r0;
 		unsigned char* c1 = &poly->r1;
 
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 		LineSwapSourceVerts(p0, p1, c0, c1);
-		MakeLineArray(&g_vertexBuffer[g_vertexIndex], p0, p1, gteIndex);
-		MakeTexcoordLineZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourLine(&g_vertexBuffer[g_vertexIndex], c0, c1);
+		MakeLineArray(firstVertex, p0, p1, gteIndex);
+		MakeTexcoordLineZero(firstVertex, 0);
+		MakeColourLine(firstVertex, shadeTexOn, c0, c1);
 
 		TriangulateQuad();
 
@@ -1044,8 +1083,9 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 	const u_short gteIndex = 0xFFFF;
 #endif
 
+	const bool shadeTexOn = (polyTag->code & 1) == 0;
 	const bool semiTrans = (polyTag->code & 2);
-	const int primSubType = polyTag->code & 0x0D;
+	const int primSubType = polyTag->code & 0x0C;
 
 	switch (primSubType)
 	{
@@ -1055,9 +1095,10 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gteIndex);
-		MakeTexcoordTriangleZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourTriangle(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		MakeTexcoordTriangleZero(firstVertex, 0);
+		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0);
 
 		g_vertexIndex += 3;
 
@@ -1076,9 +1117,10 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 		{
 			AddSplit(semiTrans, true);
 
-			MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gteIndex);
-			MakeTexcoordTriangle(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
-			MakeColourTriangle(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0);
+			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+			MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+			MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+			MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0);
 
 			g_vertexIndex += 3;
 
@@ -1094,9 +1136,10 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
-		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		MakeTexcoordQuadZero(firstVertex, 0);
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1113,9 +1156,10 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, true);
 
-		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
-		MakeTexcoordQuad(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1138,8 +1182,9 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 	const u_short gteIndex = 0xFFFF;
 #endif
 
+	const bool shadeTexOn = true;
 	const bool semiTrans = (polyTag->code & 2);
-	const int primSubType = polyTag->code & 0x0D;
+	const int primSubType = polyTag->code & 0x0C;
 
 	switch (primSubType)
 	{
@@ -1149,9 +1194,10 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gteIndex);
-		MakeTexcoordTriangleZero(&g_vertexBuffer[g_vertexIndex], 1);
-		MakeColourTriangle(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r1, &poly->r2);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		MakeTexcoordTriangleZero(firstVertex, 1);
+		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r2);
 
 		g_vertexIndex += 3;
 
@@ -1167,9 +1213,10 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, true);
 
-		MakeVertexTriangle(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x2, gteIndex);
-		MakeTexcoordTriangle(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
-		MakeColourTriangle(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r1, &poly->r2);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r2);
 
 		g_vertexIndex += 3;
 
@@ -1184,9 +1231,10 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
-		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 1);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r1, &poly->r3, &poly->r2);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		MakeTexcoordQuadZero(firstVertex, 1);
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r3, &poly->r2);
 
 		TriangulateQuad();
 
@@ -1204,9 +1252,10 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 
 		AddSplit(semiTrans, true);
 
-		MakeVertexQuad(&g_vertexBuffer[g_vertexIndex], &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
-		MakeTexcoordQuad(&g_vertexBuffer[g_vertexIndex], &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r1, &poly->r3, &poly->r2);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r3, &poly->r2);
 
 		TriangulateQuad();
 
@@ -1229,6 +1278,8 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 	const u_short gteIndex = 0xFFFF;
 #endif
 
+	// NOTE: TILE does not support switching shadeTex on real PSX
+	const bool shadeTexOn = (polyTag->code & 1) == 0;
 	const bool semiTrans = (polyTag->code & 2);
 
 	switch (polyTag->code & 0xFD)
@@ -1239,9 +1290,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, poly->w, poly->h, gteIndex);
-		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, poly->w, poly->h, gteIndex);
+		MakeTexcoordQuadZero(firstVertex, 0);
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1258,9 +1310,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, true);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, poly->w, poly->h, gteIndex);
-		MakeTexcoordRect(&g_vertexBuffer[g_vertexIndex], &poly->u0, activeDrawEnv.tpage, poly->clut, poly->w, poly->h);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, poly->w, poly->h, gteIndex);
+		MakeTexcoordRect(firstVertex, &poly->u0, activeDrawEnv.tpage, poly->clut, poly->w, poly->h);
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1277,9 +1330,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 1, 1, gteIndex);
-		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, 1, 1, gteIndex);
+		MakeTexcoordQuadZero(firstVertex, 0);
+		MakeColourQuad(firstVertex, true, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1296,9 +1350,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 8, 8, gteIndex);
-		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, 8, 8, gteIndex);
+		MakeTexcoordQuadZero(firstVertex, 0);
+		MakeColourQuad(firstVertex, true, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1315,9 +1370,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, true);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 8, 8, gteIndex);
-		MakeTexcoordRect(&g_vertexBuffer[g_vertexIndex], &poly->u0, activeDrawEnv.tpage, poly->clut, 8, 8);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, 8, 8, gteIndex);
+		MakeTexcoordRect(firstVertex, &poly->u0, activeDrawEnv.tpage, poly->clut, 8, 8);
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1334,9 +1390,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, false);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 16, 16, gteIndex);
-		MakeTexcoordQuadZero(&g_vertexBuffer[g_vertexIndex], 0);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, 16, 16, gteIndex);
+		MakeTexcoordQuadZero(firstVertex, 0);
+		MakeColourQuad(firstVertex, true, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1353,9 +1410,10 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 		AddSplit(semiTrans, true);
 
-		MakeVertexRect(&g_vertexBuffer[g_vertexIndex], &poly->x0, 16, 16, gteIndex);
-		MakeTexcoordRect(&g_vertexBuffer[g_vertexIndex], &poly->u0, activeDrawEnv.tpage, poly->clut, 16, 16);
-		MakeColourQuad(&g_vertexBuffer[g_vertexIndex], &poly->r0, &poly->r0, &poly->r0, &poly->r0);
+		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
+		MakeVertexRect(firstVertex, &poly->x0, 16, 16, gteIndex);
+		MakeTexcoordRect(firstVertex, &poly->u0, activeDrawEnv.tpage, poly->clut, 16, 16);
+		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
 
@@ -1472,13 +1530,14 @@ static int ProcessPsyXPrims(P_TAG* polyTag)
 int ParsePrimitive(P_TAG* polyTag)
 {
 	const int primType = polyTag->code & 0xF0;
-	const int primSubType = polyTag->code & 0x0D;
 
 	int primLength = 0;
 
 	switch (primType)
 	{
 	case 0x00:
+	{
+		const int primSubType = polyTag->code & 0x0F;
 		if (primSubType == 0x0)
 		{
 			primLength = 3;
@@ -1498,6 +1557,7 @@ int ParsePrimitive(P_TAG* polyTag)
 			primLength = 5;
 		}
 		break;
+	}
 	case 0x20:
 		// Flat polygons
 		primLength = ProcessFlatPoly(polyTag);
