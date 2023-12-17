@@ -368,6 +368,22 @@ u_long PsyX_SPUAL_Write(u_char* addr, u_long size)
 	return size;
 }
 
+u_long PsyX_SPUAL_Read(u_char* addr, u_long size)
+{
+	volatile int rptr_ofs = s_SpuMemory.writeptr - s_SpuMemory.samplemem;
+
+	if (rptr_ofs + size > SPU_REALMEMSIZE)
+	{
+		eprintf("SPU WARNING: SpuRead exceeded SPU_REALMEMSIZE (%d > 512k)!\n", rptr_ofs + size);
+	}
+	assert(size > 0 && rptr_ofs + size < SPU_MEMSIZE);
+
+	// simply copy to the writeptr
+	memcpy(addr, s_SpuMemory.writeptr, size);
+
+	return size;
+}
+
 // PSX ADPCM coefficients
 static const float K0[5] = { 0, 0.9375, 1.796875, 1.53125, 1.90625 };
 static const float K1[5] = { 0, 0, -0.8125, -0.859375, -0.9375 };

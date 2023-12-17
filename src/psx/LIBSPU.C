@@ -7,6 +7,11 @@ unsigned long SpuWrite(unsigned char* addr, unsigned long size)
 	return PsyX_SPUAL_Write(addr, size);
 }
 
+unsigned long SpuRead(unsigned char* addr, unsigned long size)
+{
+	return PsyX_SPUAL_Read(addr, size);
+}
+
 long SpuSetTransferMode(long mode)
 {
 	// TODO: handle different transfer modes?
@@ -125,7 +130,6 @@ long SpuClearReverbWorkArea(long mode)
 	return 0;
 }
 
-
 void SpuSetCommonAttr(SpuCommonAttr* attr)
 {
 	PSYX_UNIMPLEMENTED();
@@ -176,6 +180,23 @@ void SpuSetReverbModeDepth(short depth_left, short depth_right)
 	PSYX_UNIMPLEMENTED();
 }
 
+void SpuGetVoiceVolume(int vNum, short* volL, short* volR)
+{
+	PsyX_SPUAL_GetVoiceVolume(vNum, volL, volR);
+}
+
+void SpuGetVoicePitch(int vNum, unsigned short* pitch)
+{
+	PsyX_SPUAL_GetVoicePitch(vNum, pitch);
+}
+
+#define VOICE_ATTRIB_SETTER_SHORTCUT(flag, field, value) \
+	SpuVoiceAttr attr; \
+	attr.voice = SPU_VOICECH(vNum); \
+	attr.mask = flag; \
+	attr.field = value; \
+	SpuSetVoiceAttr(&attr)
+
 void SpuSetVoiceVolume(int vNum, short volL, short volR)
 {
 	SpuVoiceAttr attr;
@@ -190,41 +211,61 @@ void SpuSetVoiceVolume(int vNum, short volL, short volR)
 
 void SpuSetVoicePitch(int vNum, unsigned short pitch)
 {
-	SpuVoiceAttr attr;
-
-	attr.mask = SPU_VOICE_PITCH;
-	attr.voice = SPU_VOICECH(vNum);
-	attr.pitch = pitch;
-
-	SpuSetVoiceAttr(&attr);
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_PITCH, pitch, pitch);
 }
 
-void SpuGetVoiceVolume(int vNum, short *volL, short *volR)
+void SpuSetVoiceStartAddr(int vNum, unsigned long startAddr)
 {
-	PsyX_SPUAL_GetVoiceVolume(vNum, volL, volR);
-}
-
-void SpuGetVoicePitch(int vNum, unsigned short *pitch)
-{
-	PsyX_SPUAL_GetVoicePitch(vNum, pitch);
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_WDSA, addr, startAddr);
 }
 
 void SpuSetVoiceAR(int vNum, unsigned short AR)
 {
-	SpuVoiceAttr attr;
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_ADSR_AR, ar, AR);
+}
 
-	attr.mask = SPU_VOICE_ADSR_AR;
-	attr.ar = AR;
+extern void SpuSetVoiceDR(int vNum, unsigned short DR)
+{
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_ADSR_DR, dr, DR);
+}
 
-	SpuSetVoiceAttr(&attr);
+extern void SpuSetVoiceSR(int vNum, unsigned short SR)
+{
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_ADSR_SR, sr, SR);
 }
 
 void SpuSetVoiceRR(int vNum, unsigned short RR)
 {
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_ADSR_RR, rr, RR);
+}
+
+extern void SpuSetVoiceSL(int vNum, unsigned short SL)
+{
+	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_ADSR_SL, sl, SL);
+}
+
+void SpuSetVoiceADSRAttr(int vNum,
+	unsigned short AR, unsigned short DR,
+	unsigned short SR, unsigned short RR,
+	unsigned short SL,
+	long ARmode, long SRmode, long RRmode)
+{
 	SpuVoiceAttr attr;
 
-	attr.mask = SPU_VOICE_ADSR_RR;
+	attr.mask = SPU_VOICE_ADSR_AR | SPU_VOICE_ADSR_DR | 
+				SPU_VOICE_ADSR_SR | SPU_VOICE_ADSR_RR | 
+				SPU_VOICE_ADSR_SL |
+				SPU_VOICE_ADSR_AMODE | SPU_VOICE_ADSR_SMODE | SPU_VOICE_ADSR_RMODE;
+
+	attr.voice = SPU_VOICECH(vNum);
+	attr.ar = AR;
+	attr.dr = DR;
+	attr.sr = SR;
 	attr.rr = RR;
+	attr.sl = SL;
+	attr.a_mode = ARmode;
+	attr.s_mode = SRmode;
+	attr.r_mode = RRmode;
 
 	SpuSetVoiceAttr(&attr);
 }

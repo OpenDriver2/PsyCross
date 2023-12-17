@@ -18,6 +18,7 @@ extern long PsyX_SPUAL_Alloc(long size);
 extern long PsyX_SPUAL_InitAlloc(long num, char* top);
 extern void PsyX_SPUAL_Free(u_long addr);
 extern u_long PsyX_SPUAL_Write(u_char* addr, u_long size);
+extern u_long PsyX_SPUAL_Read(u_char* addr, u_long size);
 extern u_long PsyX_SPUAL_SetTransferStartAddr(u_long addr);
 
 extern void PsyX_SPUAL_GetVoiceVolume(int vNum, short* volL, short* volR);
