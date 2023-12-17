@@ -51,8 +51,10 @@ struct GPUDrawSplit
 	const char*		debugText;
 };
 
-GrVertex g_vertexBuffer[MAX_NUM_POLY_BUFFER_VERTICES];
-GPUDrawSplit g_splits[MAX_NUM_INDEX_BUFFERS];
+#define MAX_DRAW_SPLITS	 4096
+
+GrVertex g_vertexBuffer[MAX_VERTEX_BUFFER_SIZE];
+GPUDrawSplit g_splits[MAX_DRAW_SPLITS];
 
 int g_vertexIndex = 0;
 int g_splitIndex = 0;
@@ -704,8 +706,9 @@ static void AddSplit(bool semiTrans, bool textured)
 
 	curSplit.numVerts = g_vertexIndex - curSplit.startVertex;
 
-	GPUDrawSplit& split = g_splits[++g_splitIndex];
+	assert(g_splitIndex + 1 < MAX_DRAW_SPLITS);
 
+	GPUDrawSplit& split = g_splits[++g_splitIndex];
 	split.blendMode = blendMode;
 	split.texFormat = texFormat;
 	split.textureId = textureId;

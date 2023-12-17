@@ -45,6 +45,8 @@ extern "C" {
 
 extern SDL_Window* g_window;
 
+
+#define MAX_NUM_VERTEX_BUFFERS		(2)
 #define PSX_SCREEN_ASPECT	(240.0f / 320.0f)			// PSX screen is mapped always to this aspect
 
 int g_PreviousBlendMode = BM_NONE;
@@ -1037,15 +1039,15 @@ int GR_InitialisePSX()
 	{
 		int i;
 
-		glGenBuffers(2, g_glVertexBuffer);
-		glGenVertexArrays(2, g_glVertexArray);
+		glGenBuffers(MAX_NUM_VERTEX_BUFFERS, g_glVertexBuffer);
+		glGenVertexArrays(MAX_NUM_VERTEX_BUFFERS, g_glVertexArray);
 
-		for (i = 0; i < 2; i++)
+		for (i = 0; i < MAX_NUM_VERTEX_BUFFERS; i++)
 		{
 			glBindVertexArray(g_glVertexArray[i]);
 
 			glBindBuffer(GL_ARRAY_BUFFER, g_glVertexBuffer[i]);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(GrVertex) * MAX_NUM_POLY_BUFFER_VERTICES, NULL, GL_DYNAMIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(GrVertex) * MAX_VERTEX_BUFFER_SIZE, NULL, GL_DYNAMIC_DRAW);
 		}
 
 		glBindVertexArray(0);
@@ -1788,7 +1790,7 @@ void GR_BindVertexBuffer()
 
 void GR_UpdateVertexBuffer(const GrVertex* vertices, int num_vertices)
 {
-	assert(num_vertices <= MAX_NUM_POLY_BUFFER_VERTICES);
+	assert(num_vertices <= MAX_VERTEX_BUFFER_SIZE);
 	GR_BindVertexBuffer();
 
 #if USE_OPENGL
