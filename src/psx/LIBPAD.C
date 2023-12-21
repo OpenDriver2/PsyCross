@@ -16,9 +16,11 @@ void PadInitDirect(unsigned char* pad1, unsigned char* pad2)
 	PsyX_Pad_InitPad(1, pad2);
 }
 
-void PadInitMtap(unsigned char* unk00, unsigned char* unk01)
+void PadInitMtap(unsigned char* slot1, unsigned char* slot2)
 {
 	PSYX_UNIMPLEMENTED();
+	PsyX_Pad_InitPad(0, slot1);
+	PsyX_Pad_InitPad(1, slot2);
 }
 
 void PadInitGun(unsigned char* unk00, int unk01)
