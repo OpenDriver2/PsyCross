@@ -1342,6 +1342,11 @@ void GR_SaveVRAM(const char* outputFileName, int x, int y, int width, int height
 
 void GR_CopyRGBAFramebufferToVRAM(u_int* src, int x, int y, int w, int h, int update_vram, int flip_y)
 {
+	assert(x >= 0);
+	assert(y >= 0);
+	assert(x + w <= VRAM_WIDTH);
+	assert(y + h <= VRAM_WIDTH);
+
 	ushort* fb = (ushort*)malloc(w * h * sizeof(ushort));
 	uint* data_src = (uint*)src;
 	ushort* data_dst = (ushort*)fb;
@@ -1790,7 +1795,13 @@ void GR_BindVertexBuffer()
 
 void GR_UpdateVertexBuffer(const GrVertex* vertices, int num_vertices)
 {
-	assert(num_vertices <= MAX_VERTEX_BUFFER_SIZE);
+	if (num_vertices >= MAX_VERTEX_BUFFER_SIZE)
+	{
+		eprinterr("MAX_VERTEX_BUFFER_SIZE reached, expect rendering errors\n");
+		num_vertices = MAX_VERTEX_BUFFER_SIZE;
+	}
+
+	//assert(num_vertices <= MAX_VERTEX_BUFFER_SIZE);
 	GR_BindVertexBuffer();
 
 #if USE_OPENGL

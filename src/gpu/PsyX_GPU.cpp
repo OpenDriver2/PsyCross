@@ -706,7 +706,11 @@ static void AddSplit(bool semiTrans, bool textured)
 
 	curSplit.numVerts = g_vertexIndex - curSplit.startVertex;
 
-	assert(g_splitIndex + 1 < MAX_DRAW_SPLITS);
+	if (g_splitIndex + 1 >= MAX_DRAW_SPLITS)
+	{
+		eprinterr("MAX_DRAW_SPLITS reached (too many blend modes, texture formats, drawEnv clip rects, dfe switches), expect rendering errors\n");
+		return;
+	}
 
 	GPUDrawSplit& split = g_splits[++g_splitIndex];
 	split.blendMode = blendMode;
