@@ -844,7 +844,7 @@ void ParsePrimitivesLinkedList(u_long* p, int singlePrimitive)
 
 				if (currentPacket != endPacket)
 				{
-					eprinterr("did not output valid primitive or ptag length is not valid\n");
+					eprinterr("did not output valid primitive or ptag length is not valid (diff=%d)\n", endPacket-currentPacket);
 				}
 			}
 
@@ -1600,7 +1600,7 @@ int ParsePrimitive(P_TAG* polyTag)
 
 			// FIXME: is there othercommands?
 		}
-		primLength = 16;
+		primLength = getlen(polyTag);
 		break;
 	case 0xB0:
 		// [A] Psy-X custom primitives
