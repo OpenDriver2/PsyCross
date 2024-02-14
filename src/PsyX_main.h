@@ -11,11 +11,11 @@ extern "C" {
 #endif
 
 extern unsigned int g_swapTime;
-extern long g_vmode;
+extern int g_vmode;
 extern int g_activeKeyboardControllers;
 
 extern int PsyX_Sys_GetVBlankCount();
-extern long PsyX_Sys_SetVMode(long mode);
+extern int PsyX_Sys_SetVMode(int mode);
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 }

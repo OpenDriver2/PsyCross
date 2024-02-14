@@ -28,7 +28,7 @@ int memoryCardResult = -1;
 int openFrameIndex = 0;
 int currentlyOpenedMemoryCard = -1;
 
-void MemCardInit(long val)
+void MemCardInit(int val)
 {
 	bIsInitialised = 1;
 	bCanUseMemoryCardFuncs = 0;
@@ -74,7 +74,7 @@ void MemCardStop()
 	}
 }
 
-long MemCardExist(long chan)
+int MemCardExist(int chan)
 {
 	if (!bCanUseMemoryCardFuncs)
 		return 0;
@@ -111,7 +111,7 @@ long MemCardExist(long chan)
 	return 1;
 }
 
-long MemCardAccept(long chan)
+int MemCardAccept(int chan)
 {
 	if (!bCanUseMemoryCardFuncs)
 		return 0;
@@ -138,7 +138,7 @@ long MemCardAccept(long chan)
 	memoryCardStatus = 1;
 	return 1;
 }
-long MemCardOpen(long chan, char* file, long flag)
+int MemCardOpen(int chan, char* file, int flag)
 {
 	if (!bCanUseMemoryCardFuncs)
 		return 0;
@@ -184,7 +184,7 @@ void MemCardClose()
 	fclose(memoryCards[currentlyOpenedMemoryCard]);
 }
 
-long MemCardReadData(unsigned long* adrs, long ofs, long bytes)
+int MemCardReadData(unsigned int* adrs, int ofs, int bytes)
 {
 	memoryCardCmds = McFuncReadData;
 	if (bytes % 128)
@@ -198,50 +198,50 @@ long MemCardReadData(unsigned long* adrs, long ofs, long bytes)
 	return 1;
 }
 
-long MemCardReadFile(long chan, char* file, unsigned long* adrs, long ofs, long bytes)
+int MemCardReadFile(int chan, char* file, unsigned int* adrs, int ofs, int bytes)
 {
 	memoryCardCmds = McFuncReadFile;
 	return 0;
 }
 
-long MemCardWriteData(unsigned long* adrs, long ofs, long bytes)
+int MemCardWriteData(unsigned int* adrs, int ofs, int bytes)
 {
 	memoryCardCmds = McFuncWriteData;
 	return 0;
 }
 
-long MemCardWriteFile(long chan, char* file, unsigned long* adrs, long ofs, long bytes)
+int MemCardWriteFile(int chan, char* file, unsigned int* adrs, int ofs, int bytes)
 {
 	memoryCardCmds = McFuncWriteFile;
 
 	return 0;
 }
 
-long MemCardCreateFile(long chan, char* file, long blocks)
+int MemCardCreateFile(int chan, char* file, int blocks)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long MemCardDeleteFile(long chan, char* file)
+int MemCardDeleteFile(int chan, char* file)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long MemCardFormat(long chan)
+int MemCardFormat(int chan)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long MemCardUnformat(long chan)
+int MemCardUnformat(int chan)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long MemCardSync(long mode, long* cmds, long* rslt)
+int MemCardSync(int mode, int* cmds, int* rslt)
 {
 	static int timesCalled = 0;
 
@@ -274,7 +274,7 @@ MemCB MemCardCallback(MemCB func)
 	return 0;
 }
 
-long MemCardGetDirentry(long chan, char* name, struct DIRENTRY* dir, long* files, long ofs, long max)
+int MemCardGetDirentry(int chan, char* name, struct DIRENTRY* dir, int* files, int ofs, int max)
 {
 	char buf[16];
 	sprintf(&buf[0], "%ld.MCD", chan);

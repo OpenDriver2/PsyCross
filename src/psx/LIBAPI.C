@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "../PsyX_main.h"
 
-int sp = 0;
+long sp = 0;
 
 int dword_300[] = { 0x20, 0xD,  0x0,  0x0 };
 int dword_308[] = { 0x10, 0x20, 0x40, 0x1 };
@@ -56,7 +56,7 @@ extern SysCounter counters[3];
 
 SysCounter counters[3] = { 0 };
 
-long SetRCnt(long spec, unsigned short target, long mode)//(F)
+int SetRCnt(int spec, unsigned short target, int mode)//(F)
 {
 	int value = 0x48;
 
@@ -99,7 +99,7 @@ long SetRCnt(long spec, unsigned short target, long mode)//(F)
 	return 1;
 }
 
-long GetRCnt(long spec)//(F)
+int GetRCnt(int spec)//(F)
 {
 	spec &= 0xFFFF;
 
@@ -111,7 +111,7 @@ long GetRCnt(long spec)//(F)
 	return counters[spec].cycle;
 }
 
-long ResetRCnt(long spec)//(F)
+int ResetRCnt(int spec)//(F)
 {
 	spec &= 0xFFFF;
 
@@ -125,114 +125,114 @@ long ResetRCnt(long spec)//(F)
 	return 1;
 }
 
-long StartRCnt(long spec)//(F)
+int StartRCnt(int spec)//(F)
 {
 	spec &= 0xFFFF;
 	dword_300[1] |= dword_308[spec];
 	return spec < 3 ? 1 : 0;
 }
 
-long StopRCnt(long spec)//TODO
+int StopRCnt(int spec)//TODO
 {
 	return 0;
 }
 #undef OpenEvent
-long OpenEvent(unsigned long event, long unk01, long unk02, long(*func)())
+int OpenEvent(unsigned int event, int unk01, int unk02, long(*func)())
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long CloseEvent(unsigned long event)
+int CloseEvent(unsigned int event)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long EnableEvent(unsigned long event)
+int EnableEvent(unsigned int event)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long DisableEvent(unsigned long event)
+int DisableEvent(unsigned int event)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long WaitEvent(unsigned long event)
+int WaitEvent(unsigned int event)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long TestEvent(unsigned long event)
+int TestEvent(unsigned int event)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-void DeliverEvent(unsigned long ev1, long ev2)
+void DeliverEvent(unsigned int ev1, int ev2)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
-void UnDeliverEvent(unsigned long ev1, long ev2)
+void UnDeliverEvent(unsigned int ev1, int ev2)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
-long OpenTh(long(*func)(), unsigned long unk01, unsigned long unk02)
-{
-	PSYX_UNIMPLEMENTED();
-	return 0;
-}
-
-int CloseTh(long unk00)
+int OpenTh(int(*func)(), unsigned int unk01, unsigned int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-int ChangeTh(long unk00)
+int CloseTh(int unk00)
+{
+	PSYX_UNIMPLEMENTED();
+	return 0;
+}
+
+int ChangeTh(int unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
 /*
-long open(char* unk00, unsigned long unk01)
+int open(char* unk00, unsigned int unk01)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long close(long unk00)
+int close(int unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long lseek(long unk00, long unk01, long unk02)
+int lseek(int unk00, int unk01, int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long read(long unk00, void* unk01, long unk02)
+int read(int unk00, void* unk01, int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long write(long unk00, void* unk01, long unk02)
+int write(int unk00, void* unk01, int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long ioctl(long unk00, long unk01, long unk02)
+int ioctl(int unk00, int unk01, int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -250,67 +250,67 @@ struct DIRENTRY* nextfile(struct DIRENTRY* unk00)
 	return 0;
 }
 
-long erase(char* unk00)
+int erase(char* unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long undelete(char* unk00)
+int undelete(char* unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long format(char* unk00)
+int format(char* unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
-long rename(char* unk00, char* unk01)
+int rename(char* unk00, char* unk01)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long cd(char* unk00)
+int cd(char* unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 */
 
-long LoadTest(char*  unk00, struct EXEC* unk01)
+int LoadTest(char*  unk00, struct EXEC* unk01)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long Load(char * unk00, struct EXEC* unk01)
+int Load(char * unk00, struct EXEC* unk01)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long Exec(struct EXEC * unk00, long unk01, char** unk02)
+int Exec(struct EXEC * unk00, int unk01, char** unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long LoadExec(char * unk00, unsigned long unk01, unsigned long unk02)
+int LoadExec(char * unk00, unsigned int unk01, unsigned int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long InitPAD(char * unk00, long unk01, char* unk02, long unk03)
+int InitPAD(char * unk00, int unk01, char* unk02, int unk03)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long StartPAD()
+int StartPAD()
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -340,7 +340,7 @@ void ReturnFromException()
 {
 	PSYX_UNIMPLEMENTED();
 }
-
+/*
 int EnterCriticalSection()
 {
 	PSYX_UNIMPLEMENTED();
@@ -351,7 +351,7 @@ void ExitCriticalSection()
 {
 	PSYX_UNIMPLEMENTED();
 }
-
+*/
 void Exception()
 {
 	PSYX_UNIMPLEMENTED();
@@ -403,47 +403,47 @@ unsigned long GetSysSp()
 	return 0;
 }
 
-long SetConf(unsigned long unk00, unsigned long unk01, unsigned long unk02)
+int SetConf(unsigned int unk00, unsigned int unk01, unsigned int unk02)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-void GetConf(unsigned long* unk00, unsigned long* unk01, unsigned long* unk02)
+void GetConf(unsigned int* unk00, unsigned int* unk01, unsigned int* unk02)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
 /*
-long _get_errno(void)
+int _get_errno(void)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _get_error(long unk00)
+int _get_error(int unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 */
-void SystemError(char unk00, long unk01)
+void SystemError(char unk00, int unk01)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
-void SetMem(long unk00)
+void SetMem(int unk00)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
-long Krom2RawAdd(unsigned long unk00)
+int Krom2RawAdd(unsigned int unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long Krom2RawAdd2(unsigned short unk00)
+int Krom2RawAdd2(unsigned short unk00)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -464,23 +464,23 @@ void _boot(void)
 	PSYX_UNIMPLEMENTED();
 }
 
-void ChangeClearPAD(long unk00)
+void ChangeClearPAD(int unk00)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
-void InitCARD(long val)
+void InitCARD(int val)
 {
 	PSYX_UNIMPLEMENTED();
 }
 
-long StartCARD()
+int StartCARD()
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long StopCARD()
+int StopCARD()
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -491,25 +491,25 @@ void _bu_init()
 	PSYX_UNIMPLEMENTED();
 }
 
-long _card_info(long chan)
+int _card_info(int chan)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_clear(long chan)
+int _card_clear(int chan)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_load(long chan)
+int _card_load(int chan)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_auto(long val)
+int _card_auto(int val)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -520,37 +520,37 @@ void _new_card()
 	PSYX_UNIMPLEMENTED();
 }
 
-long _card_status(long drv)
+int _card_status(int drv)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_wait(long drv)
+int _card_wait(int drv)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-unsigned long _card_chan(void)
+unsigned int _card_chan(void)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_write(long chan, long block, unsigned char *buf)
+int _card_write(int chan, int block, unsigned char *buf)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_read(long chan, long block, unsigned char *buf)
+int _card_read(int chan, int block, unsigned char *buf)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long _card_format(long chan)
+int _card_format(int chan)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;

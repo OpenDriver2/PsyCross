@@ -54,7 +54,7 @@ size_t vfread(void* _Buffer, size_t _ElementSize, size_t _ElementCount, VFILE* _
 	return _ElementCount;
 }
 
-int vfseek(VFILE* _Stream, long  _Offset, int   _Origin)
+int vfseek(VFILE* _Stream, int  _Offset, int   _Origin)
 {
 	if (_Stream->fp)
 		return fseek(_Stream->fp, _Offset, _Origin);
@@ -69,7 +69,7 @@ int vfseek(VFILE* _Stream, long  _Offset, int   _Origin)
 	return 0;
 }
 
-long vftell(VFILE* _Stream)
+int vftell(VFILE* _Stream)
 {
 	if (_Stream->fp)
 		return ftell(_Stream->fp);
@@ -134,7 +134,7 @@ void PsyX_CDFS_Init(const char* imageFileName, int track /*= 0*/, int sectorSize
 		g_cdSectorSize = sectorSize;
 }
 
-void PsyX_CDFS_Init_Mem(const u_long* data, int size, int track /*= 0*/, int sectorSize /*= 0*/)
+void PsyX_CDFS_Init_Mem(const u_int* data, int size, int track /*= 0*/, int sectorSize /*= 0*/)
 {
 	g_UseCDImage = 1;
 
@@ -582,7 +582,7 @@ int CdSync(int mode, u_char * result)
 			if (readMode == RM_XA_AUDIO)
 			{
 				char xaAudioData[2336];
-				CdRead(1, (unsigned long*)&xaAudioData[0], CdlReadS);
+				CdRead(1, (unsigned int*)&xaAudioData[0], CdlReadS);
 				CdReadSync(CdlReadS, NULL);
 
 				//Sector should be read now

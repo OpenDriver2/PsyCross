@@ -61,21 +61,15 @@ int DrawSync(int mode)
 	return 0;
 }
 
-int LoadImagePSX(RECT16* rect, u_long* p)
+int LoadImage(RECT16* rect, u_long* p)
 {
 	GR_CopyVRAM((unsigned short*)p, 0, 0, rect->w, rect->h, rect->x, rect->y);
 	return 0;
 }
 
-int LoadImage(RECT16* rect, u_long* p)
-{
-	LoadImagePSX(rect, p);
-	return 0;
-}
-
 int LoadImage2(RECT16* rect, u_long* p)
 {
-	LoadImagePSX(rect, p);
+	GR_CopyVRAM((unsigned short*)p, 0, 0, rect->w, rect->h, rect->x, rect->y);
 
 	// simulate immediate mode
 	GR_UpdateVRAM();
@@ -376,9 +370,9 @@ void SetDrawMove(DR_MOVE* p, RECT16* rect, int x, int y)
 
 	p->code[0] = 0x1000000;
 	p->code[1] = 0x80000000;
-	p->code[2] = *(ulong*)&rect->x;
+	p->code[2] = *(uint*)&rect->x;
 	p->code[3] = y << 0x10 | x & 0xffffU;
-	p->code[4] = *(ulong*)&rect->w;
+	p->code[4] = *(uint*)&rect->w;
 
 	setlen(p, len);
 }
@@ -393,7 +387,7 @@ void SetDrawTPage(DR_TPAGE* p, int dfe, int dtd, int tpage)
 	setDrawTPage(p, dfe, dtd, tpage);
 }
 
-u_long DrawSyncCallback(void(*func)(void))
+u_int DrawSyncCallback(void(*func)(void))
 {
 	drawsync_callback = func;
 	return 0;
@@ -451,7 +445,7 @@ void DrawPrim(void* p)
 	//if (activeDrawEnv.isbg)
 	//	ClearImage(&activeDrawEnv.clip, activeDrawEnv.r0, activeDrawEnv.g0, activeDrawEnv.b0);
 
- 	ParsePrimitivesLinkedList((u_long*)p, 1);
+ 	ParsePrimitivesLinkedList((u_int*)p, 1);
 }
 
 void SetSprt16(SPRT_16* p)
@@ -504,7 +498,7 @@ void FntLoad(int x, int y)
 	RECT16 pos;
 	TIM_IMAGE tim;
 
-	GetTimInfo((u_long*)dbugfont, &tim);
+	GetTimInfo((u_int*)dbugfont, &tim);
 
 	// Load font image
 	pos = *tim.pRECT16;
@@ -556,7 +550,7 @@ void CatPrim(void* p0, void* p1)
 	catPrim(p0, p1);
 }
 
-u_short LoadTPage(u_long* pix, int tp, int abr, int x, int y, int w, int h)
+u_short LoadTPage(u_int* pix, int tp, int abr, int x, int y, int w, int h)
 {
 	RECT16 imageArea;
 	imageArea.x = x;
@@ -600,7 +594,7 @@ u_short LoadTPage(u_long* pix, int tp, int abr, int x, int y, int w, int h)
 	}
 
 	//loc_2AC
-	LoadImagePSX(&imageArea, pix);
+	LoadImage(&imageArea, pix);
 	return GetTPage(tp, abr, x, y) & 0xFFFF;
 }
 
@@ -611,9 +605,9 @@ u_short GetTPage(int tp, int abr, int x, int y)
 
 u_short LoadClut(u_long* clut, int x, int y)
 {
-	RECT16 rect;//&var_18
+	RECT16 rect;
 	setRECT(&rect, x, y, 256, 1);
-	LoadImagePSX(&rect, clut);
+	LoadImage(&rect, clut);
 	return GetClut(x, y) & 0xFFFF;
 }
 
@@ -625,7 +619,7 @@ u_short LoadClut2(u_long* clut, int x, int y)
 	drawArea.w = 16;
 	drawArea.h = 1;
 
-	LoadImagePSX(&drawArea, clut);
+	LoadImage(&drawArea, clut);
 
 	return getClut(x, y);
 }

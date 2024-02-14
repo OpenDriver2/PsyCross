@@ -134,7 +134,7 @@ void RotTransSV(SVECTOR* v0, SVECTOR* v1, long* flag)
 	gte_stflg(flag);
 }
 
-long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag)
+int RotTransPers(SVECTOR* v0, int* sxy, long* p, long* flag)
 {
 	int sz;
 	gte_RotTransPers(v0, sxy, p, flag, &sz);
@@ -142,7 +142,7 @@ long RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag)
 	return sz;
 }
 
-long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1, long* sxy2, long* p, long* flag)
+int RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1, long* sxy2, long* p, long* flag)
 {
 	int sz;
 	gte_RotTransPers3(v0, v1, v2, sxy0, sxy1, sxy2, p, flag, &sz);
@@ -150,9 +150,9 @@ long RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1
 	return sz;
 }
 
-long RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1, long* sxy2, long* sxy3, long* p, long* flag)
+int RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1, long* sxy2, long* sxy3, long* p, long* flag)
 {
-	long _flag;
+	int _flag;
 	int sz;
 
 	gte_ldv3(v0, v1, v2);
@@ -185,7 +185,7 @@ void NormalColor3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, CVECTOR* v3, CVECTOR* v
 	gte_NormalColor3(v0, v1, v2, v3, v4, v5);
 }
 
-void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2)
+void NormalColorDpq(SVECTOR* v0, CVECTOR* v1, int p, CVECTOR* v2)
 {
 	gte_NormalColorDpq(v0, v1, p, v2);
 }
@@ -200,12 +200,12 @@ void NormalColorCol3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, CVECTOR* v3, CVECTOR
 	gte_NormalColorCol3(v0,v1,v2,v3,v4,v5,v6);
 }
 
-void DpqColor(CVECTOR* v0, long p, CVECTOR* v1)
+void DpqColor(CVECTOR* v0, int p, CVECTOR* v1)
 {
 	gte_DpqColor(v0, &p, v1);
 }
 
-void ColorDpq(VECTOR* v0, CVECTOR* v1, long p, CVECTOR* v2) 
+void ColorDpq(VECTOR* v0, CVECTOR* v1, int p, CVECTOR* v2)
 {
 	gte_ColorDpq(v0, v1, p, v2);
 }
@@ -215,9 +215,9 @@ void ColorCol(VECTOR* v0, CVECTOR* v1, CVECTOR* v2)
 	gte_ColorCol(v0, v1, v2);
 }
 
-long NormalClip(long sxy0, long sxy1, long sxy2)
+int NormalClip(int sxy0, int sxy1, int sxy2)
 {
-	long opz;
+	int opz;
 
 	gte_NormalClip(&sxy0, &sxy1, &sxy2, &opz);
 	
@@ -229,7 +229,7 @@ void LocalLight(SVECTOR* v0, VECTOR* v1)
 	gte_LocalLight(v0, v1);
 }
 
-long RotAverageNclip4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0/*arg_10*/, long* sxy1/*arg_14*/, long* sxy2/*arg_18*/, long* sxy3/*arg_1C*/, long* p/*arg_20*/, long* otz/*arg_24*/, long* flag/*arg_28*/)
+int RotAverageNclip4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1, long* sxy2, long* sxy3, long* p, long* otz, long* flag)
 {
 	gte_ldv3(v0, v1, v2);
 	gte_rtpt();
@@ -376,12 +376,12 @@ MATRIX* MulRotMatrix(MATRIX* m0)
 	return m0;
 }
 
-void SetBackColor(long rbk, long gbk, long bbk)
+void SetBackColor(int rbk, int gbk, int bbk)
 {
 	gte_SetBackColor(rbk,gbk,bbk);
 }
 
-void SetFarColor(long rfc, long gfc, long bfc)
+void SetFarColor(int rfc, int gfc, int bfc)
 {
 	gte_SetFarColor(rfc, gfc, bfc);
 }
@@ -671,7 +671,7 @@ MATRIX* RotMatrixYXZ(SVECTOR* r, MATRIX* m)
 	return m;
 }
 
-MATRIX* RotMatrixX(long r, MATRIX* m)
+MATRIX* RotMatrixX(int r, MATRIX* m)
 {
 	// correct Psy-Q implementation
 	int s0 = rsin(r);
@@ -693,7 +693,7 @@ MATRIX* RotMatrixX(long r, MATRIX* m)
 	return m;
 }
 
-MATRIX* RotMatrixY(long r, MATRIX* m)
+MATRIX* RotMatrixY(int r, MATRIX* m)
 {
 	// correct Psy-Q implementation
 	int s0 = rsin(r);
@@ -715,7 +715,7 @@ MATRIX* RotMatrixY(long r, MATRIX* m)
 	return m;
 }
 
-MATRIX* RotMatrixZ(long r, MATRIX* m)
+MATRIX* RotMatrixZ(int r, MATRIX* m)
 {
 	// correct Psy-Q implementation
 	int s0 = rsin(r);
@@ -892,7 +892,7 @@ void SetDQB(int iDQB)
 	CTC2(*(uint*)&iDQB, 28);
 }
 
-void SetFogNear(long a, long h)
+void SetFogNear(int a, int h)
 {
 	//Error division by 0
 	assert(h != 0);
@@ -902,7 +902,7 @@ void SetFogNear(long a, long h)
 	SetDQB(20971520);
 }
 
-void SetFogNearFar(long a, long b, long h)
+void SetFogNearFar(int a, int b, int h)
 {
 	if (b - a < 100)
 		return;
@@ -936,11 +936,11 @@ int rcos(int a)
 	return rcossin_tbl[(a & 0xfffU) * 2 + 1];
 }
 
-long ratan2(long y, long x)
+int ratan2(int y, int x)
 {
 	// correct Psy-Q implementation
-	long v;
-	ulong ang;
+	int v;
+	uint ang;
 	int xlt0, ylt0;
 
 	xlt0 = x < 0;
@@ -957,7 +957,7 @@ long ratan2(long y, long x)
 
 	if (y < x)
 	{
-		if (((ulong)y & 0x7fe00000U) == 0)
+		if (((uint)y & 0x7fe00000U) == 0)
 			ang = (y << 10) / x;
 		else
 			ang = y / (x >> 10);
@@ -966,7 +966,7 @@ long ratan2(long y, long x)
 	}
 	else
 	{
-		if (((ulong)x & 0x7fe00000U) == 0)
+		if (((uint)x & 0x7fe00000U) == 0)
 			ang = (x << 10) / y;
 		else
 			ang = x / (y >> 10);
@@ -983,7 +983,7 @@ long ratan2(long y, long x)
 	return v;
 }
 
-long SquareRoot0(long a)
+int SquareRoot0(int a)
 {
 	// correct Psy-Q implementation
 	int idx;

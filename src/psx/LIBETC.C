@@ -55,7 +55,7 @@ int VSyncCallback(void(*f)(void))
 	return old;
 }
 
-long SetVideoMode(long mode)
+int SetVideoMode(int mode)
 {
 #ifdef DEBUG
 	// debug marks for overflow cheks
@@ -66,7 +66,7 @@ long SetVideoMode(long mode)
 	return PsyX_Sys_SetVMode(mode);
 }
 
-long GetVideoMode()
+int GetVideoMode()
 {
 	return g_vmode;
 }
@@ -78,11 +78,11 @@ void PadInit(int mode)
 	// TODO: call PadInitDirect
 }
 
-u_long PadRead(int id)
+u_int PadRead(int id)
 {
 	PSYX_UNIMPLEMENTED();
 	
-	// TODO: return pad data as u_long
+	// TODO: return pad data as u_int
 	return 0;
 }
 

@@ -1698,37 +1698,42 @@ void GR_SetBlendMode(BlendMode blendMode)
 		return;
 
 #if USE_OPENGL
-	if (g_PreviousBlendMode == BM_NONE)
-		glEnable(GL_BLEND);
-
-	switch (blendMode)
+	if (blendMode == BM_NONE)
 	{
-	case BM_NONE:
-		glDisable(GL_BLEND);
+		if (g_PreviousBlendMode != BM_NONE)
+		{
+			glBlendColor(1.f, 1.f, 1.f, 1.f);
+			glDisable(GL_BLEND);
+		}
+
+		g_PreviousBlendMode = blendMode;
 		GR_EnableDepth(1);
-		break;
+		return;
+	}
+	else
+	{
+		if(g_PreviousBlendMode == BM_NONE)
+		{
+			glBlendColor(0.25f, 0.25f, 0.25f, 0.5f);
+			glEnable(GL_BLEND);
+		}
+
+		g_PreviousBlendMode = blendMode;
+		GR_EnableDepth(0);
+	}
+
+	glBlendEquationSeparate(blendMode == BM_SUBTRACT ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD, GL_FUNC_ADD);
+	switch (blendMode) {
 	case BM_AVERAGE:
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glBlendEquation(GL_FUNC_ADD);
-		GR_EnableDepth(0);
 		break;
 	case BM_ADD:
-		glBlendFunc(GL_ONE, GL_ONE);
-		glBlendEquation(GL_FUNC_ADD);
-		GR_EnableDepth(0);
-		break;
 	case BM_SUBTRACT:
 		glBlendFunc(GL_ONE, GL_ONE);
-		glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-		GR_EnableDepth(0);
 		break;
 	case BM_ADD_QUATER_SOURCE:
-		glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE);
-		glBlendEquation(GL_FUNC_ADD);
-		GR_EnableDepth(0);
+		glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE); 
 		break;
-	default:
-		eprinterr("Unsupported blend mode %d\n", blendMode);
 	}
 #endif
 

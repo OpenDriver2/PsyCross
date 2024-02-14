@@ -800,7 +800,7 @@ void DrawAllSplits()
 // forward declarations
 int ParsePrimitive(P_TAG* polyTag);
 
-void ParsePrimitivesLinkedList(u_long* p, int singlePrimitive)
+void ParsePrimitivesLinkedList(u_int* p, int singlePrimitive)
 {
 	if (!p)
 		return;
@@ -1437,11 +1437,11 @@ static int ProcessTileAndSprt(P_TAG* polyTag)
 
 static int ProcessDrawEnv(P_TAG* polyTag)
 {
-	const u_long* codePtr = (u_long*)&polyTag->pad0;
+	const u_int* codePtr = (u_int*)&polyTag->pad0;
 	int processedLongs = 0;
 	for (int i = 0; i < polyTag->len; ++i)
 	{
-		const u_long code = codePtr[i];
+		const u_int code = codePtr[i];
 		const int primSubType = code >> 24 & 0x0F;
 
 		switch (primSubType)
@@ -1557,8 +1557,8 @@ int ParsePrimitive(P_TAG* polyTag)
 			const int x = drmove->code[3] & 0xFFFF;
 
 			RECT16 rect;
-			*(ulong*)&rect.x = *(ulong*)&drmove->code[2];
-			*(ulong*)&rect.w = *(ulong*)&drmove->code[4];
+			*(uint*)&rect.x = *(uint*)&drmove->code[2];
+			*(uint*)&rect.w = *(uint*)&drmove->code[4];
 
 			MoveImage(&rect, x, y);
 			primLength = 5;
@@ -1592,10 +1592,10 @@ int ParsePrimitive(P_TAG* polyTag)
 			DR_LOAD* drload = (DR_LOAD*)polyTag;
 
 			RECT16 rect;
-			*(ulong*)&rect.x = *(ulong*)&drload->code[1];
-			*(ulong*)&rect.w = *(ulong*)&drload->code[2];
+			*(uint*)&rect.x = *(uint*)&drload->code[1];
+			*(uint*)&rect.w = *(uint*)&drload->code[2];
 
-			LoadImagePSX(&rect, drload->p);
+			LoadImage(&rect, (u_long*)drload->p);
 			//Emulator_UpdateVRAM();			// FIXME: should it be updated immediately?
 
 			// FIXME: is there othercommands?

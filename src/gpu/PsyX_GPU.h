@@ -22,7 +22,7 @@ extern int g_GPUDisabledState;
 void ClearSplits();
 void DrawAllSplits();
 
-extern void ParsePrimitivesLinkedList(u_long* p, int singlePrimitive);
+extern void ParsePrimitivesLinkedList(u_int* p, int singlePrimitive);
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 }

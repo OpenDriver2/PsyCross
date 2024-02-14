@@ -165,39 +165,34 @@ extern u_char dbugfont[];
 
 int GetTimInfo(u_long* tim, TIM_IMAGE* timimg)
 {
-
-	u_long* rtim;
+	u_int* rtim = (u_int*)tim;;
 
 	// Check ID
-	if ((tim[0] & 0xff) != 0x10) {
+	if ((rtim[0] & 0xff) != 0x10) {
 		return 1;
 	}
 
 	// Check version
-	if (((tim[0] >> 8) & 0xff) != 0x0) {
+	if (((rtim[0] >> 8) & 0xff) != 0x0) {
 		return 2;
 	}
 
-	timimg->mode = tim[1];
-	rtim = tim + 2;
+	timimg->mode = rtim[1];
+	rtim += 2;
 
 	// Clut present?
 	if (timimg->mode & 0x8) {
 
-		timimg->cRECT16 = (RECT16*)(rtim + 1);
-		timimg->caddr = (u_long*)(rtim + 3);
+		timimg->cRECT16 = (RECT16*)&rtim[1];
+		timimg->caddr = (u_int*)&rtim[3];
 
 		rtim += rtim[0] >> 2;
-
-	}
-	else {
-
+	} else {
 		timimg->caddr = 0;
-
 	}
 
-	timimg->pRECT16 = (RECT16*)(rtim + 1);
-	timimg->paddr = (u_long*)(rtim + 3);
+	timimg->pRECT16 = (RECT16*)&rtim[1];
+	timimg->paddr = (u_int*)&rtim[3];
 
 	return 0;
 

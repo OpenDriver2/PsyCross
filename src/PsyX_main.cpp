@@ -90,13 +90,13 @@ extern void GR_BeginScene();
 extern void GR_EndScene();
 extern void GR_UpdateSwapIntervalState(int swapInterval);
 
-long g_vmode = -1;
+int g_vmode = -1;
 int g_frameSkip = 0;
 
 #ifdef __EMSCRIPTEN__
 
-long g_emIntrInterval = -1;
-long g_intrVMode = MODE_NTSC;
+int g_emIntrInterval = -1;
+int g_intrVMode = MODE_NTSC;
 double g_emOldDate = 0;
 
 void emIntrCallback(void* userData)
@@ -124,9 +124,9 @@ EM_BOOL emIntrCallback2(double time, void* userData)
 
 #endif
 
-long PsyX_Sys_SetVMode(long mode)
+int PsyX_Sys_SetVMode(int mode)
 {
-	long old = g_vmode;
+	int old = g_vmode;
 	g_vmode = mode;
 
 #ifdef __EMSCRIPTEN__

@@ -68,7 +68,7 @@ typedef struct
 static SPUMemory s_SpuMemory;
 static SDL_mutex* g_SpuMutex = NULL;
 static int g_spuInit = 0;
-static long s_spuMallocVal = 0;
+static int s_spuMallocVal = 0;
 
 typedef struct
 {
@@ -279,7 +279,7 @@ void PsyX_SPUAL_ShutdownSound()
 
 //--------------------------------------------------------------------------------
 
-long PsyX_SPUAL_Alloc(long size)
+int PsyX_SPUAL_Alloc(int size)
 {
 	int addr = s_spuMallocVal;
 	s_spuMallocVal += size;
@@ -290,18 +290,18 @@ long PsyX_SPUAL_Alloc(long size)
 	return addr;
 }
 
-long PsyX_SPUAL_InitAlloc(long num, char* top)
+int PsyX_SPUAL_InitAlloc(int num, char* top)
 {
 	s_spuMallocVal = 0;
 	return 0;
 }
 
-void PsyX_SPUAL_Free(u_long addr)
+void PsyX_SPUAL_Free(u_int addr)
 {
 	s_spuMallocVal = 0;
 }
 
-u_long PsyX_SPUAL_SetTransferStartAddr(u_long addr)
+u_int PsyX_SPUAL_SetTransferStartAddr(u_int addr)
 {
 	s_SpuMemory.writeptr = s_SpuMemory.samplemem + addr;
 
@@ -314,7 +314,7 @@ u_long PsyX_SPUAL_SetTransferStartAddr(u_long addr)
 	return 1;
 }
 
-u_long PsyX_SPUAL_Write(u_char* addr, u_long size)
+u_int PsyX_SPUAL_Write(u_char* addr, u_int size)
 {
 	//if (0x7EFF0 < size)
 	//	size = 0x7EFF0;
@@ -368,7 +368,7 @@ u_long PsyX_SPUAL_Write(u_char* addr, u_long size)
 	return size;
 }
 
-u_long PsyX_SPUAL_Read(u_char* addr, u_long size)
+u_int PsyX_SPUAL_Read(u_char* addr, u_int size)
 {
 	volatile int rptr_ofs = s_SpuMemory.writeptr - s_SpuMemory.samplemem;
 
@@ -575,9 +575,9 @@ static void UpdateVoiceSample(SPUALVoice* voice)
 	alSourcei(alSource, AL_BUFFER, alBuffer);
 }
 
-long PsyX_SPUAL_SetMute(long on_off)
+int PsyX_SPUAL_SetMute(int on_off)
 {
-	long old_state = g_SPUMuted;
+	int old_state = g_SPUMuted;
 	g_SPUMuted = on_off;
 	return old_state;
 }
@@ -683,7 +683,7 @@ void PsyX_SPUAL_SetVoiceAttr(SpuVoiceAttr* psxAttrib)
 	SDL_UnlockMutex(g_SpuMutex);
 }
 
-void PsyX_SPUAL_SetKey(long on_off, u_long voice_bit)
+void PsyX_SPUAL_SetKey(int on_off, u_int voice_bit)
 {
 	if (!g_spuInit)
 		return;
@@ -715,7 +715,7 @@ void PsyX_SPUAL_SetKey(long on_off, u_long voice_bit)
 	SDL_UnlockMutex(g_SpuMutex);
 }
 
-int PsyX_SPUAL_GetKeyStatus(u_long voice_bit)
+int PsyX_SPUAL_GetKeyStatus(u_int voice_bit)
 {
 	int state = AL_STOPPED;
 	SDL_LockMutex(g_SpuMutex);
@@ -760,9 +760,9 @@ void PsyX_SPUAL_GetAllKeysStatus(char* status)
 	SDL_UnlockMutex(g_SpuMutex);
 }
 
-long PsyX_SPUAL_SetReverb(long on_off)
+int PsyX_SPUAL_SetReverb(int on_off)
 {
-	long old_state = g_enableSPUReverb;
+	int old_state = g_enableSPUReverb;
 	g_enableSPUReverb = on_off;
 
 	if (!g_spuInit)
@@ -786,12 +786,12 @@ long PsyX_SPUAL_SetReverb(long on_off)
 	return old_state;
 }
 
-long PsyX_SPUAL_GetReverbState()
+int PsyX_SPUAL_GetReverbState()
 {
 	return g_enableSPUReverb;
 }
 
-u_long PsyX_SPUAL_SetReverbVoice(long on_off, u_long voice_bit)
+u_int PsyX_SPUAL_SetReverbVoice(int on_off, u_int voice_bit)
 {
 	if (!g_spuInit)
 		return 0;
@@ -823,9 +823,9 @@ u_long PsyX_SPUAL_SetReverbVoice(long on_off, u_long voice_bit)
 	return 0;
 }
 
-u_long PsyX_SPUAL_GetReverbVoice()
+u_int PsyX_SPUAL_GetReverbVoice()
 {
-	u_long bits = 0;
+	u_int bits = 0;
 	for (int i = 0; i < s_spuVoiceCount; i++)
 	{
 		SPUALVoice* voice = &g_SpuVoices[i];

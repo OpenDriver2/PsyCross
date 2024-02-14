@@ -1,42 +1,99 @@
 #define HAVE_M_PI
 #include "../PsyX_main.h"
 #include "../audio/PsyX_SPUAL.h"
+#include "psx/libapi.h"
 
-unsigned long SpuWrite(unsigned char* addr, unsigned long size)
+static int s_spu_EVdma = 0;
+static int s_inTransfer = 0;
+static int s_transferMode = SPU_TRANSFER_BY_DMA;
+static SpuTransferCallbackProc s_transferCallback = NULL;
+
+unsigned int SpuWrite(unsigned char* addr, unsigned int size)
 {
-	return PsyX_SPUAL_Write(addr, size);
+	unsigned int result = PsyX_SPUAL_Write(addr, size);
+
+	if (s_transferCallback)
+		s_transferCallback();
+	else
+		s_inTransfer = 0;
+
+	return result;
 }
 
-unsigned long SpuRead(unsigned char* addr, unsigned long size)
+unsigned int SpuRead(unsigned char* addr, unsigned int size)
 {
 	return PsyX_SPUAL_Read(addr, size);
 }
 
-long SpuSetTransferMode(long mode)
+int SpuSetTransferMode(int mode)
 {
 	// TODO: handle different transfer modes?
 
-	long mode_fix = mode == 0 ? 0 : 1;
+	int mode_fix = mode == 0 ? 0 : 1;
 
 	//trans_mode = mode;
 	//transMode = mode_fix;
+	s_transferMode = mode_fix;
 
 	return mode_fix;
 }
 
-unsigned long SpuSetTransferStartAddr(unsigned long addr)
+unsigned int SpuSetTransferStartAddr(unsigned int addr)
 {
 	return PsyX_SPUAL_SetTransferStartAddr(addr);
 }
 
-long SpuIsTransferCompleted(long flag)
+int SpuIsTransferCompleted(int flag)
 {
+#if 0
+	int event = 0;
+
+	if (s_transferMode == 1 || s_inTransfer == 1)
+		return 1;
+
+	event = TestEvent(s_spu_EVdma);
+	if (flag == 1)
+	{
+		if (event != 0)
+		{
+			s_inTransfer = 1;
+			return 1;
+		}
+		else
+		{
+			do
+			{
+				event = TestEvent(s_spu_EVdma);
+			} while (event == 0);
+
+			s_inTransfer = 1;
+			return 1;
+		}
+	}
+
+	if (event == 1)
+		s_inTransfer = 1;
+
+	return event;
+#else
 	return 1;
+#endif
 }
 
 void SpuInit(void)
 {
 	ResetCallback();
+#if 0
+	if (s_spu_isCalled == 0)
+	{
+		s_spu_isCalled = 1;
+		EnterCriticalSection();
+		_SpuDataCallback(_spu_FiDMA);
+		s_spu_EVdma = OpenEvent(HwSPU, EvSpCOMP, EvMdNOINTR, NULL);
+		EnableEvent(_spu_EVdma);
+		ExitCriticalSection();
+	}
+#endif
 	PsyX_SPUAL_InitSound();
 }
 
@@ -50,12 +107,12 @@ void SpuSetVoiceAttr(SpuVoiceAttr *arg)
 	PsyX_SPUAL_SetVoiceAttr(arg);
 }
 
-void SpuSetKey(long on_off, unsigned long voice_bit)
+void SpuSetKey(int on_off, unsigned int voice_bit)
 {
 	PsyX_SPUAL_SetKey(on_off, voice_bit);
 }
 
-long SpuGetKeyStatus(unsigned long voice_bit)
+int SpuGetKeyStatus(unsigned int voice_bit)
 {
 	return PsyX_SPUAL_GetKeyStatus(voice_bit);
 }
@@ -71,22 +128,22 @@ void SpuSetKeyOnWithAttr(SpuVoiceAttr* attr)
 	SpuSetKey(SPU_ON, attr->voice);
 }
 
-long SpuSetMute(long on_off)
+int SpuSetMute(int on_off)
 {
 	return PsyX_SPUAL_SetMute(on_off);
 }
 
-long SpuSetReverb(long on_off)
+int SpuSetReverb(int on_off)
 {
 	return PsyX_SPUAL_SetReverb(on_off);
 }
 
-long SpuGetReverb(void)
+int SpuGetReverb(void)
 {
 	return PsyX_SPUAL_GetReverbState();
 }
 
-long SpuSetReverbModeParam(SpuReverbAttr* attr)
+int SpuSetReverbModeParam(SpuReverbAttr* attr)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -97,34 +154,34 @@ void SpuGetReverbModeParam(SpuReverbAttr* attr)
 	PSYX_UNIMPLEMENTED();
 }
 
-long SpuSetReverbDepth(SpuReverbAttr* attr)
+int SpuSetReverbDepth(SpuReverbAttr* attr)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long SpuReserveReverbWorkArea(long on_off)
+int SpuReserveReverbWorkArea(int on_off)
 {
 	return 1;
 }
 
-long SpuIsReverbWorkAreaReserved(long on_off)
+int SpuIsReverbWorkAreaReserved(int on_off)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-unsigned long SpuSetReverbVoice(long on_off, unsigned long voice_bit)
+unsigned int SpuSetReverbVoice(int on_off, unsigned int voice_bit)
 {
 	return PsyX_SPUAL_SetReverbVoice(on_off, voice_bit);
 }
 
-unsigned long SpuGetReverbVoice(void)
+unsigned int SpuGetReverbVoice(void)
 {
 	return PsyX_SPUAL_GetReverbVoice();
 }
 
-long SpuClearReverbWorkArea(long mode)
+int SpuClearReverbWorkArea(int mode)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -135,28 +192,28 @@ void SpuSetCommonAttr(SpuCommonAttr* attr)
 	PSYX_UNIMPLEMENTED();
 }
 
-long SpuInitMalloc(long num, char* top)
+int SpuInitMalloc(int num, char* top)
 {
 	return PsyX_SPUAL_InitAlloc(num, top);
 }
 
-long SpuMalloc(long size)
+int SpuMalloc(int size)
 {
 	return PsyX_SPUAL_Alloc(size);
 }
 
-long SpuMallocWithStartAddr(unsigned long addr, long size)
+int SpuMallocWithStartAddr(unsigned int addr, int size)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-void SpuFree(unsigned long addr)
+void SpuFree(unsigned int addr)
 {
 	PsyX_SPUAL_Free(addr);
 }
 
-unsigned long SpuFlush(unsigned long ev)
+unsigned int SpuFlush(unsigned int ev)
 {
 	//PSYX_UNIMPLEMENTED();
 	return 0;
@@ -169,7 +226,7 @@ void SpuSetCommonMasterVolume(short mvol_left, short mvol_right)// (F)
 	PSYX_UNIMPLEMENTED();
 }
 
-long SpuSetReverbModeType(long mode)
+int SpuSetReverbModeType(int mode)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -214,7 +271,7 @@ void SpuSetVoicePitch(int vNum, unsigned short pitch)
 	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_PITCH, pitch, pitch);
 }
 
-void SpuSetVoiceStartAddr(int vNum, unsigned long startAddr)
+void SpuSetVoiceStartAddr(int vNum, unsigned int startAddr)
 {
 	VOICE_ATTRIB_SETTER_SHORTCUT(SPU_VOICE_WDSA, addr, startAddr);
 }
@@ -248,7 +305,7 @@ void SpuSetVoiceADSRAttr(int vNum,
 	unsigned short AR, unsigned short DR,
 	unsigned short SR, unsigned short RR,
 	unsigned short SL,
-	long ARmode, long SRmode, long RRmode)
+	int ARmode, int SRmode, int RRmode)
 {
 	SpuVoiceAttr attr;
 
@@ -272,23 +329,24 @@ void SpuSetVoiceADSRAttr(int vNum,
 
 SpuTransferCallbackProc SpuSetTransferCallback(SpuTransferCallbackProc func)
 {
-	PSYX_UNIMPLEMENTED();
-	return 0;
+	SpuTransferCallbackProc oldFn = s_transferCallback;
+	s_transferCallback = func;
+	return oldFn;
 }
 
-long SpuReadDecodedData(SpuDecodedData * d_data, long flag)
+int SpuReadDecodedData(SpuDecodedData * d_data, int flag)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-long SpuSetIRQ(long on_off)
+int SpuSetIRQ(int on_off)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
 }
 
-unsigned long SpuSetIRQAddr(unsigned long x)
+unsigned int SpuSetIRQAddr(unsigned int x)
 {
 	PSYX_UNIMPLEMENTED();
 	return 0;
@@ -300,7 +358,7 @@ SpuIRQCallbackProc SpuSetIRQCallback(SpuIRQCallbackProc x)
 	return 0;
 }
 
-void SpuSetCommonCDMix(long cd_mix)
+void SpuSetCommonCDMix(int cd_mix)
 {
 	PSYX_UNIMPLEMENTED();
 }
@@ -310,7 +368,7 @@ void SpuSetCommonCDVolume(short cd_left, short cd_right)
 	PSYX_UNIMPLEMENTED();
 }
 
-void SpuSetCommonCDReverb(long cd_reverb)
+void SpuSetCommonCDReverb(int cd_reverb)
 {
 	PSYX_UNIMPLEMENTED();
 }
