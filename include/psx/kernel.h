@@ -109,7 +109,7 @@ struct EvCB {
 };
 
 //#if !defined(D3D9)
-#if 0///@FIXME Really not defined D3D9 :/
+#if __GNUC__///@FIXME Really not defined D3D9 :/
 struct EXEC {                   
         unsigned int pc0;      
         unsigned int gp0;      
