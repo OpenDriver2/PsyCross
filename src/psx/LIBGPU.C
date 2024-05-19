@@ -260,13 +260,24 @@ int GetODE(void)
 
 DISPENV* GetDispEnv(DISPENV* env)//(F)
 {
-	memcpy(env, &activeDispEnv, sizeof(DISPENV));
+	*env = activeDispEnv;
 	return env;
 }
 
 DISPENV* PutDispEnv(DISPENV* env)//To Finish
 {
-	memcpy((char*)&activeDispEnv, env, sizeof(DISPENV));
+	if (env->isinter != currentDispEnv.isinter ||
+		env->disp.y == currentDispEnv.disp.y)
+	{
+		// hacky and wacky but it avoids hacks in game code
+		activeDispEnv = currentDispEnv = *env;
+	}
+	else
+	{
+		activeDispEnv = currentDispEnv;
+		currentDispEnv = *env;
+	}
+
 	return 0;
 }
 

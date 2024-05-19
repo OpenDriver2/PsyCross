@@ -22,6 +22,7 @@
 
 OT_TAG prim_terminator = { -1, 0 }; // P_TAG with zero primLength
 
+DISPENV currentDispEnv;
 DISPENV activeDispEnv;
 DRAWENV activeDrawEnv;
 
@@ -86,14 +87,11 @@ void DrawEnvOffset(float& ofsX, float& ofsY)
 {
 	if (activeDrawEnv.dfe)
 	{
-		int w, h;
-		DrawEnvDimensions(w, h);
-
-		if (w <= 0) w = 1;
-
 		// also make offset in draw dimensions range to prevent flicker
-		ofsX = activeDrawEnv.ofs[0] % w;
-		ofsY = activeDrawEnv.ofs[1] % 256; // HACK: use half of VRAM
+		const int x = activeDispEnv.disp.x;
+		const int y = activeDispEnv.disp.y;
+		ofsX = activeDrawEnv.ofs[0] - activeDispEnv.disp.x;
+		ofsY = activeDrawEnv.ofs[1] - activeDispEnv.disp.y;
 	}
 	else
 	{

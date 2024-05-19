@@ -15,6 +15,7 @@ extern "C" {
 extern OT_TAG prim_terminator; // P_TAG with zero length
 
 extern int g_splitIndex;
+extern DISPENV currentDispEnv;
 extern DISPENV activeDispEnv;
 extern DRAWENV activeDrawEnv;
 extern int g_GPUDisabledState;
