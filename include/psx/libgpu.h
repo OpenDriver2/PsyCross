@@ -247,15 +247,9 @@ extern	int (*GPU_printf)(const char *fmt, ...);
 		((0xe1000000)|((dtd)?0x0200:0)| \
 		((dfe)?0x0400:0)|((tpage)&0x9ff))
 
-#if USE_EXTENDED_PRIM_POINTERS
 #define setDrawTPage(p, dfe, dtd, tpage)	\
-	setlen(p, 1),	\
-	((u_int *)(p))[2] = _get_mode(dfe, dtd, tpage)
-#else
-#define setDrawTPage(p, dfe, dtd, tpage)	\
-	setlen(p, 1),	\
-	((u_int *)(p))[1] = _get_mode(dfe, dtd, tpage)
-#endif
+		setlen(p, 1),	\
+		((p)->code[0] = _get_mode(dfe, dtd, tpage))
 
 #define _get_tw(tw)	\
 		(tw ? ((0xe2000000)|((((tw)->y&0xff)>>3)<<15)| \
@@ -263,9 +257,9 @@ extern	int (*GPU_printf)(const char *fmt, ...);
 		(((~((tw)->w-1)&0xff)>>3))) : 0)
 
 #define setTexWindow(p, tw)			\
-	setlen(p, 2),				\
-	((u_int *)(p))[1] = _get_tw(tw),	\
-	((u_int *)(p))[2] = 0
+		setlen(p, 2),				\
+		((p)->code[0] = _get_tw(tw)),	\
+		((p)->code[1] = 0)
 
 #define _get_len(rect)	\
 		(((RECT16)->w*(rect)->h+1)/2+4)
@@ -283,20 +277,13 @@ extern	int (*GPU_printf)(const char *fmt, ...);
 
 #define setDrawStp(p, pbw) 				\
 		setlen(p, 2),					\
-		((u_int *)p)[1] = 0xe6000000|(pbw?0x01:0),	\
-		((u_int *)p)[2] = 0
+		((p)->code[0] = 0xe6000000|(pbw?0x01:0)),	\
+		((p)->code[1] = 0)
 
-#if USE_EXTENDED_PRIM_POINTERS
 #define setDrawMode(p, dfe, dtd, tpage, tw) 		\
 		setlen(p, 3),					\
-		((u_int *)p)[2] = _get_mode(dfe, dtd, tpage),	\
-		((u_int *)p)[3] = _get_tw((RECT16 *)tw)
-#else
-#define setDrawMode(p, dfe, dtd, tpage, tw) 		\
-		setlen(p, 2),					\
-		((u_int *)p)[1] = _get_mode(dfe, dtd, tpage),	\
-		((u_int *)p)[2] = _get_tw((RECT16 *)tw)
-#endif
+		((p)->code[0] = _get_mode(dfe, dtd, tpage)),	\
+		((p)->code[1] = _get_tw((RECT16 *)tw))
 
 	
 /*	Primitive 	Lentgh		Code				*/
@@ -398,6 +385,8 @@ typedef struct {
 	VERTTYPE	x2,	y2;
 } POLY_F3;				/* Flat Triangle */
 
+static_assert(sizeof(POLY_F3) / 4 - P_LEN == 4, "POLY_F3 size must be 4 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
@@ -406,6 +395,8 @@ typedef struct {
 	VERTTYPE	x2,	y2;
 	VERTTYPE	x3,	y3;
 } POLY_F4;				/* Flat Quadrangle */
+
+static_assert(sizeof(POLY_F4) / 4 - P_LEN == 5, "POLY_F4 size must be 5 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -417,6 +408,8 @@ typedef struct {
 	VERTTYPE	x2,	y2;
 	u_char	u2, v2;	u_short	pad1;
 } POLY_FT3;				/* Flat Textured Triangle */
+
+static_assert(sizeof(POLY_FT3) / 4 - P_LEN == 7, "POLY_FT3 size must be 7 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -431,6 +424,8 @@ typedef struct {
 	u_char	u3, v3;	u_short	pad2;
 } POLY_FT4;				/* Flat Textured Quadrangle */
 
+static_assert(sizeof(POLY_FT4) / 4 - P_LEN == 9, "POLY_FT4 size must be 9 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
@@ -440,6 +435,8 @@ typedef struct {
 	u_char	r2, g2, b2, pad2;
 	VERTTYPE	x2,	y2;
 } POLY_G3;				/* Gouraud Triangle */
+
+static_assert(sizeof(POLY_G3) / 4 - P_LEN == 6, "POLY_G3 size must be 6 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -453,6 +450,8 @@ typedef struct {
 	VERTTYPE	x3,	y3;
 } POLY_G4;				/* Gouraud Quadrangle */
 
+static_assert(sizeof(POLY_G4) / 4 - P_LEN == 8, "POLY_G4 size must be 8 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
@@ -465,6 +464,8 @@ typedef struct {
 	VERTTYPE	x2,	y2;
 	u_char	u2, v2;	u_short	pad2;
 } POLY_GT3;				/* Gouraud Textured Triangle */
+
+static_assert(sizeof(POLY_GT3) / 4 - P_LEN == 9, "POLY_GT3 size must be 9 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -482,6 +483,8 @@ typedef struct {
 	u_char	u3, v3;	u_short	pad3;
 } POLY_GT4;				/* Gouraud Textured Quadrangle */
 
+static_assert(sizeof(POLY_GT4) / 4 - P_LEN == 12, "POLY_GT4 size must be 12 longs");
+
 /*
  * Line Primitive Definitions
  */
@@ -492,6 +495,8 @@ typedef struct {
 	VERTTYPE	x1,	y1;
 } LINE_F2;				/* Unconnected Flat Line */
 
+static_assert(sizeof(LINE_F2) / 4 - P_LEN == 3, "LINE_F2 size must be 3 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
@@ -499,6 +504,8 @@ typedef struct {
 	u_char	r1, g1, b1, p1;
 	VERTTYPE	x1,	y1;
 } LINE_G2;				/* Unconnected Gouraud Line */
+
+static_assert(sizeof(LINE_G2) / 4 - P_LEN == 4, "LINE_G2 size must be 4 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -508,6 +515,8 @@ typedef struct {
 	VERTTYPE	x2,	y2;
 	u_int	pad;
 } LINE_F3;				/* 2 connected Flat Line */
+
+static_assert(sizeof(LINE_F3) / 4 - P_LEN == 5, "LINE_F3 size must be 5 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -520,6 +529,8 @@ typedef struct {
 	u_int	pad;
 } LINE_G3;				/* 2 connected Gouraud Line */
 
+static_assert(sizeof(LINE_G3) / 4 - P_LEN == 7, "LINE_G3 size must be 7 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
@@ -529,6 +540,8 @@ typedef struct {
 	VERTTYPE	x3,	y3;
 	u_int	pad;
 } LINE_F4;				/* 3 connected Flat Line Quadrangle */
+
+static_assert(sizeof(LINE_F4) / 4 - P_LEN == 6, "LINE_F4 size must be 6 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -543,6 +556,8 @@ typedef struct {
 	u_int	pad;
 } LINE_G4;				/* 3 connected Gouraud Line */
 
+static_assert(sizeof(LINE_G4) / 4 - P_LEN == 9, "LINE_G4 size must be 9 longs");
+
 /*
  * Sprite Primitive Definitions
  */
@@ -554,12 +569,16 @@ typedef struct {
 	VERTTYPE	w,	h;
 } SPRT;					/* free size Sprite */
 
+static_assert(sizeof(SPRT) / 4 - P_LEN == 4, "SPRT size must be 4 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
 	VERTTYPE	x0, 	y0;
 	u_char	u0, v0;	u_short	clut;
 } SPRT_16;				/* 16x16 Sprite */
+
+static_assert(sizeof(SPRT_16) / 4 - P_LEN == 3, "SPRT_16 size must be 3 longs");
 		   
 typedef struct {
 	DECLARE_P_ADDR
@@ -567,6 +586,8 @@ typedef struct {
 	VERTTYPE	x0, 	y0;
 	u_char	u0, v0;	u_short	clut;
 } SPRT_8;				/* 8x8 Sprite */
+
+static_assert(sizeof(SPRT_8) / 4 - P_LEN == 3, "SPRT_8 size must be 3 longs");
 		   
 /*
  * Tile Primitive Definitions
@@ -574,9 +595,11 @@ typedef struct {
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
-	VERTTYPE	x0, 	y0;
+	VERTTYPE	x0, y0;
 	VERTTYPE	w,	h;
 } TILE;					/* free size Tile */
+
+static_assert(sizeof(TILE) / 4 - P_LEN == 3, "TILE size must be 3 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -584,17 +607,23 @@ typedef struct {
 	VERTTYPE	x0, 	y0;
 } TILE_16;				/* 16x16 Tile */
 
+static_assert(sizeof(TILE_16) / 4 - P_LEN == 2, "TILE_16 size must be 2 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
 	VERTTYPE	x0, 	y0;
 } TILE_8;				/* 8x8 Tile */
 
+static_assert(sizeof(TILE_8) / 4 - P_LEN == 2, "TILE_8 size must be 2 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_char	r0, g0, b0, code;
 	VERTTYPE	x0, 	y0;
 } TILE_1;				/* 1x1 Tile */
+
+static_assert(sizeof(TILE_1) / 4 - P_LEN == 2, "TILE_1 size must be 2 longs");
 
 /*
  *  Special Primitive Definitions
@@ -604,25 +633,35 @@ typedef struct {
 	u_int	code[2];
 } DR_MODE;				/* Drawing Mode */
 
+static_assert(sizeof(DR_MODE) / 4 - P_LEN == 2, "DR_MODE size must be 2 longs");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_int	code[2];
 } DR_TWIN;				/* Texture Window */
+
+static_assert(sizeof(DR_TWIN) / 4 - P_LEN == 2, "DR_TWIN size must be 2 longs");
 		   
 typedef struct {
 	DECLARE_P_ADDR
 	u_int	code[2];
 } DR_AREA;				/* Drawing Area */
+
+static_assert(sizeof(DR_AREA) / 4 - P_LEN == 2, "DR_AREA size must be 2 longs");
 		   
 typedef struct {
 	DECLARE_P_ADDR
 	u_int	code[2];
 } DR_OFFSET;				/* Drawing Offset */
+
+static_assert(sizeof(DR_OFFSET) / 4 - P_LEN == 2, "DR_OFFSET size must be 2 longs");
 		   
 typedef struct {			/* MoveImage */
 	DECLARE_P_ADDR
 	u_int	code[5];
 } DR_MOVE;
+
+static_assert(sizeof(DR_MOVE) / 4 - P_LEN == 5, "DR_MOVE size must be 5 longs");
 
 typedef struct {			/* LoadImage */
 	DECLARE_P_ADDR
@@ -630,15 +669,21 @@ typedef struct {			/* LoadImage */
 	u_int	p[13];
 } DR_LOAD;
 
+static_assert(sizeof(DR_LOAD) / 4 - P_LEN == 16, "DR_LOAD size must be 16 longs");
+
 typedef	struct {
 	DECLARE_P_ADDR
 	u_int	code[1];
 } DR_TPAGE;				/* Drawing TPage */
 
+static_assert(sizeof(DR_TPAGE) / 4 - P_LEN == 1, "DR_TPAGE size must be 1 long");
+
 typedef struct {
 	DECLARE_P_ADDR
 	u_int  code[2];
 } DR_STP;                               /* Drawing STP */
+
+static_assert(sizeof(DR_STP) / 4 - P_LEN == 2, "DR_STP size must be 2 longs");
 
 /* 
 * PSY-X commands
@@ -648,6 +693,8 @@ typedef struct {
 	DECLARE_P_ADDR
 	u_int  code[2];
 } DR_PSYX_TEX;
+
+static_assert(sizeof(DR_PSYX_TEX) / 4 - P_LEN == 2, "DR_PSYX_TEX size must be 2 longs");
 
 typedef struct {
 	DECLARE_P_ADDR
@@ -662,6 +709,8 @@ typedef struct {
 	DECLARE_P_ADDR
 	u_int	code[15];
 } DR_ENV;				/* Packed Drawing Environment */
+
+static_assert(sizeof(DR_ENV) / 4 - P_LEN == 15, "DR_ENV size must be 15 longs");
 
 typedef struct {
 	RECT16	clip;		/* clip area */

@@ -645,6 +645,7 @@ u_long* FntFlush()
 {
 	_fnt_stream* str;
 	char* opri;
+	DR_TPAGE* tp;
 	SPRT_8* sprt;
 	char* text;
 	int	i, sx, sy;
@@ -658,7 +659,8 @@ u_long* FntFlush()
 	opri = str->pribuff;
 
 	// Create TPage primitive
-	setDrawTPage(opri, 1, 0, _font_tpage);
+	tp = opri;
+	setDrawTPage(tp, 1, 0, _font_tpage);
 
 	// Create a black rectangle background when enabled
 	if (str->bg)
@@ -804,7 +806,7 @@ void SetPsyXTexture(DR_PSYX_TEX* p, uint grTextureId, int width, int height)
 
 void SetPsyXDebugMarker(DR_PSYX_DBGMARKER* p, const char* str)
 {
-	setlen(p, 2);
+	setlen(p, sizeof(DR_PSYX_DBGMARKER) / 4 - P_LEN);
 	p->code = 0xB2000000;
 	p->text = str;
 }
