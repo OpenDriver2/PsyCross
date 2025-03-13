@@ -13,9 +13,7 @@
 #define GET_TPAGE_FORMAT(tpage) ((TexFormat)((tpage >> 7) & 0x3))
 #define GET_TPAGE_BLEND(tpage)  ((BlendMode)(((tpage >> 5) & 3) + 1))
 
-// TODO
-#define GET_TPAGE_DITHER(tpage) 1
-//#define GET_TPAGE_DITHER(tpage) 1((tpage >> 9) & 0x1)
+#define GET_TPAGE_DITHER(tpage) ((tpage >> 9) & 0x1)
 
 #define GET_CLUT_X(clut)        ((clut & 0x3F) << 4)
 #define GET_CLUT_Y(clut)        (clut >> 6)
@@ -1124,7 +1122,7 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 
 			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 			MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
-			MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+			MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 			MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0);
 
 			g_vertexIndex += 3;
@@ -1163,7 +1161,7 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
-		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
 		TriangulateQuad();
@@ -1220,7 +1218,7 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
-		MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+		MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r2);
 
 		g_vertexIndex += 3;
@@ -1259,7 +1257,7 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
 		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
-		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(lastTpage));
+		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r3, &poly->r2);
 
 		TriangulateQuad();
