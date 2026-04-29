@@ -8,11 +8,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#if !defined(__APPLE__)
 #include <malloc.h>
+#endif
 
 #ifdef _WIN32
 #include <direct.h>
-#elif defined (__unix__)
+#elif defined (__unix__) || defined(__APPLE__)
 #include <sys/stat.h>
 #define _mkdir(str)				mkdir(str, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH)
 #endif
@@ -582,7 +584,7 @@ int CdSync(int mode, u_char * result)
 			if (readMode == RM_XA_AUDIO)
 			{
 				char xaAudioData[2336];
-				CdRead(1, (u_long*)&xaAudioData[0], CdlReadS);
+				CdRead(1, (unsigned int*)&xaAudioData[0], CdlReadS);
 				CdReadSync(CdlReadS, NULL);
 
 				//Sector should be read now

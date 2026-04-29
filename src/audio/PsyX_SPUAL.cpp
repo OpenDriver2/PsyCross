@@ -10,10 +10,7 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #include <AL/alext.h>
-
-#ifndef __EMSCRIPTEN__
 #include <AL/efx.h>
-#endif
 
 // TODO: implement XA, implement ADSR
 
@@ -95,8 +92,6 @@ ALuint		g_nAlReverbEffect = 0;
 int			g_enableSPUReverb = 0;
 int			g_ALEffectsSupported = 0;
 
-#ifndef __EMSCRIPTEN__
-
 LPALGENEFFECTS alGenEffects = NULL;
 LPALDELETEEFFECTS alDeleteEffects = NULL;
 LPALEFFECTI alEffecti = NULL;
@@ -105,12 +100,10 @@ LPALGENAUXILIARYEFFECTSLOTS alGenAuxiliaryEffectSlots = NULL;
 LPALDELETEAUXILIARYEFFECTSLOTS alDeleteAuxiliaryEffectSlots = NULL;
 LPALAUXILIARYEFFECTSLOTI alAuxiliaryEffectSloti = NULL;
 
-#endif // __EMSCRIPTEN__
-
 static void InitOpenAlEffects()
 {
 	g_ALEffectsSupported = 0;
-#ifndef __EMSCRIPTEN__
+
 	if (!alcIsExtensionPresent(g_ALCdevice, ALC_EXT_EFX_NAME))
 	{
 		eprintf("PSX SPU effects are NOT supported!\n");
@@ -152,7 +145,6 @@ static void InitOpenAlEffects()
 	eprintf("PSX SPU effects are supported and initialized\n");
 
 	alAuxiliaryEffectSloti(g_ALEffectSlots[g_currEffectSlotIdx], AL_EFFECTSLOT_EFFECT, g_nAlReverbEffect);
-#endif // __EMSCRIPTEN__
 }
 
 int PsyX_SPUAL_InitSound()
@@ -173,9 +165,7 @@ int PsyX_SPUAL_InitSound()
 	static int al_context_params[] =
 	{
 		ALC_FREQUENCY, 44100,
-#ifndef __EMSCRIPTEN__
 		ALC_MAX_AUXILIARY_SENDS, 2,
-#endif
 		0
 	};
 
@@ -246,9 +236,8 @@ int PsyX_SPUAL_InitSound()
 
 		alGenSources(1, &voice->alSource);
 		alGenBuffers(1, &voice->alBuffer);
-#ifdef AL_SOFT_source_resampler
+
 		alSourcei(voice->alSource, AL_SOURCE_RESAMPLER_SOFT, 2);	// Use cubic resampler
-#endif
 		alSourcei(voice->alSource, AL_SOURCE_RELATIVE, AL_TRUE);
 	}
 
@@ -334,7 +323,7 @@ u_int PsyX_SPUAL_Write(u_char* addr, u_int size)
 
 	if (wptr_ofs + size > SPU_REALMEMSIZE)
 	{
-		eprintf("SPU WARNING: SpuWrite exceeded SPU_REALMEMSIZE by %d bytes!\n", wptr_ofs + size - SPU_REALMEMSIZE);
+		eprintf("SPU WARNING: SpuWrite exceeded SPU_REALMEMSIZE (%d > 512k)!\n", wptr_ofs + size);
 	}
 	assert(size > 0 && wptr_ofs + size < SPU_MEMSIZE);
 
@@ -385,7 +374,7 @@ u_int PsyX_SPUAL_Read(u_char* addr, u_int size)
 
 	if (rptr_ofs + size > SPU_REALMEMSIZE)
 	{
-		eprintf("SPU WARNING: SpuRead exceeded SPU_REALMEMSIZE by %d bytes!\n", rptr_ofs + size - SPU_REALMEMSIZE);
+		eprintf("SPU WARNING: SpuRead exceeded SPU_REALMEMSIZE (%d > 512k)!\n", rptr_ofs + size);
 	}
 	assert(size > 0 && rptr_ofs + size < SPU_MEMSIZE);
 
@@ -525,7 +514,7 @@ static void UpdateVoiceSample(SPUALVoice* voice)
 	loopStart = 0;
 	loopLen = 0;
 
-	count = decodeSound(s_SpuMemory.samplemem + voice->attr.addr, SPU_MEMSIZE - voice->attr.addr, waveBuffer, &loopStart, &loopLen, 1);
+	count = decodeSound(s_SpuMemory.samplemem + voice->attr.addr, SPU_REALMEMSIZE - voice->attr.addr, waveBuffer, &loopStart, &loopLen, 1);
 
 	if (count == 0)
 		return;
@@ -778,7 +767,7 @@ int PsyX_SPUAL_SetReverb(int on_off)
 
 	if (!g_spuInit)
 		return old_state;
-#ifndef __EMSCRIPTEN__
+
 	// switch if needed
 	if (g_ALEffectsSupported && old_state != g_enableSPUReverb)
 	{
@@ -793,7 +782,7 @@ int PsyX_SPUAL_SetReverb(int on_off)
 			alAuxiliaryEffectSloti(g_ALEffectSlots[1], AL_EFFECTSLOT_EFFECT, AL_EFFECT_NULL);
 		}
 	}
-#endif // __EMSCRIPTEN__
+
 	return old_state;
 }
 
@@ -823,12 +812,10 @@ u_int PsyX_SPUAL_SetReverbVoice(int on_off, u_int voice_bit)
 			continue;
 
 		voice->reverb = on_off > 0;
-#ifndef __EMSCRIPTEN__
 		if (on_off)
 			alSource3i(alSource, AL_AUXILIARY_SEND_FILTER, g_ALEffectSlots[g_currEffectSlotIdx], 0, AL_FILTER_NULL);
 		else
 			alSource3i(alSource, AL_AUXILIARY_SEND_FILTER, AL_EFFECTSLOT_NULL, 0, AL_FILTER_NULL);
-#endif // __EMSCRIPTEN__
 	}
 
 	SDL_UnlockMutex(g_SpuMutex);

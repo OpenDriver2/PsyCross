@@ -48,7 +48,7 @@ SVECTOR *ApplyMatrixSV(MATRIX *m, SVECTOR *v0, SVECTOR *v1);
 VECTOR *ApplyMatrixLV(MATRIX *m, VECTOR *v0, VECTOR *v1);
 extern void RotTrans(SVECTOR* v0, VECTOR* v1, long* flag);
 extern void RotTransSV(SVECTOR* v0, SVECTOR* v1, long* flag);
-extern int RotTransPers(SVECTOR* v0, int* sxy, long* p, long* flag);
+extern int RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag);
 extern int RotTransPers3(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, long* sxy0, long* sxy1, long* sxy2, long* p, long* flag);
 extern int RotTransPers4(SVECTOR* v0, SVECTOR* v1, SVECTOR* v2, SVECTOR* v3, long* sxy0, long* sxy1, long* sxy2, long* sxy3, long* p, long* flag);
 extern void NormalColor(SVECTOR* v0, CVECTOR* v1);

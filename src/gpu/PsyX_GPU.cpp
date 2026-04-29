@@ -796,7 +796,7 @@ void DrawAllSplits()
 // forward declarations
 int ParsePrimitive(P_TAG* polyTag);
 
-void ParsePrimitivesLinkedList(u_long* p, int singlePrimitive)
+void ParsePrimitivesLinkedList(u_int* p, int singlePrimitive)
 {
 	if (!p)
 		return;
