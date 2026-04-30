@@ -44,6 +44,8 @@ struct GPUDrawSplit
 
 	int				drawPrimMode;
 
+	bool			depthEnable;
+
 	u_short			startVertex;
 	u_short			numVerts;
 
@@ -64,6 +66,7 @@ void ClearSplits()
 	g_vertexIndex = 0;
 	g_splitIndex = 0;
 	g_splits[0].texFormat = (TexFormat)0xFFFF;
+	g_splits[0].depthEnable = false;
 }
 
 template<class T>
@@ -176,40 +179,57 @@ void MakeLineArray(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, ushort gteidx)
 	ScreenCoordsToEmulator(vertex, 4);
 }
 
-inline void ApplyVertexPGXP(GrVertex* v, VERTTYPE* p, float ofsX, float ofsY, ushort gteidx, int lookupOfs)
-{
 #if USE_PGXP
+static const float kPGXPMinPerspectiveZ = 0.25f;
+
+inline int FindVertexPGXP(PGXPVData* vd, VERTTYPE* p, ushort gteidx, int lookupOfs)
+{
 	uint lookup = PGXP_LOOKUP_VALUE(p[0], p[1]);
+	int hasData = 0;
 
-	PGXPVData vd;
-	if (gteidx != 0xffff &&
-		g_cfg_pgxpTextureCorrection && 
-		PGXP_GetCacheData(&vd, lookup, gteidx + lookupOfs))
+	if (g_cfg_pgxpTextureCorrection)
 	{
-		v->x = vd.px;
-		v->y = vd.py;
-		v->z = vd.pz;
+		const ushort addressIndex = PGXP_GetAddressIndex(p);
+		if (addressIndex != 0xffff)
+			hasData = PGXP_GetCacheDataExact(vd, lookup, addressIndex);
 
-		// calculate offset for our perspective matrix based on supposed GTE transformed geometry offset
-		float dispW, dispH;
-		DrawEnvDimensions(dispW, dispH);
-
-		const float gteOfsX = fmodf(vd.ofx, dispW) - dispW * 0.5f;
-		const float gteOfsY = fmodf(vd.ofy, dispH) - dispH * 0.5f;
-
-		v->ofsX = (ofsX + gteOfsX) / dispW * 2.0f;
-		v->ofsY = (ofsY + gteOfsY) / dispH * 2.0f;
-		v->scr_h = vd.scr_h;
+		if (!hasData && gteidx != 0xffff)
+			hasData = PGXP_GetCacheData(vd, lookup, gteidx + lookupOfs);
 	}
-	else
-	{
-		v->scr_h = 0.0f;
-		v->z = 0.0f;
-	}
-#endif
+
+	return hasData;
 }
 
-void MakeVertexTriangle(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, ushort gteidx)
+inline int PrimitivePGXPValid(const PGXPVData* vd, int count)
+{
+	for (int i = 0; i < count; i++) {
+		if (vd[i].scr_h <= 100.0f || vd[i].pz <= kPGXPMinPerspectiveZ)
+			return 0;
+	}
+
+	return 1;
+}
+
+inline void ApplyVertexPGXP(GrVertex* v, const PGXPVData& vd, float ofsX, float ofsY)
+{
+	v->x = vd.px;
+	v->y = vd.py;
+	v->z = vd.pz;
+
+	// calculate offset for our perspective matrix based on supposed GTE transformed geometry offset
+	float dispW, dispH;
+	DrawEnvDimensions(dispW, dispH);
+
+	const float gteOfsX = fmodf(vd.ofx, dispW) - dispW * 0.5f;
+	const float gteOfsY = fmodf(vd.ofy, dispH) - dispH * 0.5f;
+
+	v->ofsX = (ofsX + gteOfsX) / dispW * 2.0f;
+	v->ofsY = (ofsY + gteOfsY) / dispH * 2.0f;
+	v->scr_h = vd.scr_h;
+}
+#endif
+
+bool MakeVertexTriangle(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, ushort gteidx)
 {
 	assert(p0);
 	assert(p1);
@@ -229,14 +249,27 @@ void MakeVertexTriangle(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* 
 	vertex[2].x = p2[0] + ofsX;
 	vertex[2].y = p2[1] + ofsY;
 
-	ApplyVertexPGXP(&vertex[0], p0, ofsX, ofsY, gteidx, -2);
-	ApplyVertexPGXP(&vertex[1], p1, ofsX, ofsY, gteidx, -1);
-	ApplyVertexPGXP(&vertex[2], p2, ofsX, ofsY, gteidx, 0);
+#if USE_PGXP
+	PGXPVData pgxp[3];
+	const int hasPGXP =
+		FindVertexPGXP(&pgxp[0], p0, gteidx, -3) &&
+		FindVertexPGXP(&pgxp[1], p1, gteidx, -2) &&
+		FindVertexPGXP(&pgxp[2], p2, gteidx, -1);
+
+	if (hasPGXP && PrimitivePGXPValid(pgxp, 3)) {
+		ApplyVertexPGXP(&vertex[0], pgxp[0], ofsX, ofsY);
+		ApplyVertexPGXP(&vertex[1], pgxp[1], ofsX, ofsY);
+		ApplyVertexPGXP(&vertex[2], pgxp[2], ofsX, ofsY);
+		ScreenCoordsToEmulator(vertex, 3);
+		return true;
+	}
+#endif
 
 	ScreenCoordsToEmulator(vertex, 3);
+	return false;
 }
 
-void MakeVertexQuad(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, VERTTYPE* p3, ushort gteidx)
+bool MakeVertexQuad(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, VERTTYPE* p3, ushort gteidx)
 {
 	assert(p0);
 	assert(p1);
@@ -260,12 +293,26 @@ void MakeVertexQuad(GrVertex* vertex, VERTTYPE* p0, VERTTYPE* p1, VERTTYPE* p2, 
 	vertex[3].x = p3[0] + ofsX;
 	vertex[3].y = p3[1] + ofsY;
 
-	ApplyVertexPGXP(&vertex[0], p0, ofsX, ofsY, gteidx, -3);
-	ApplyVertexPGXP(&vertex[1], p1, ofsX, ofsY, gteidx, -2);
-	ApplyVertexPGXP(&vertex[2], p2, ofsX, ofsY, gteidx, -1);
-	ApplyVertexPGXP(&vertex[3], p3, ofsX, ofsY, gteidx, 0);
+#if USE_PGXP
+	PGXPVData pgxp[4];
+	const int hasPGXP =
+		FindVertexPGXP(&pgxp[0], p0, gteidx, -4) &&
+		FindVertexPGXP(&pgxp[1], p1, gteidx, -3) &&
+		FindVertexPGXP(&pgxp[2], p2, gteidx, -1) &&
+		FindVertexPGXP(&pgxp[3], p3, gteidx, -2);
+
+	if (hasPGXP && PrimitivePGXPValid(pgxp, 4)) {
+		ApplyVertexPGXP(&vertex[0], pgxp[0], ofsX, ofsY);
+		ApplyVertexPGXP(&vertex[1], pgxp[1], ofsX, ofsY);
+		ApplyVertexPGXP(&vertex[2], pgxp[2], ofsX, ofsY);
+		ApplyVertexPGXP(&vertex[3], pgxp[3], ofsX, ofsY);
+		ScreenCoordsToEmulator(vertex, 4);
+		return true;
+	}
+#endif
 
 	ScreenCoordsToEmulator(vertex, 4);
+	return false;
 }
 
 void MakeVertexRect(GrVertex* vertex, VERTTYPE* p0, short w, short h, ushort gteidx)
@@ -677,6 +724,7 @@ static void AddSplit(bool semiTrans, bool textured)
 	BlendMode blendMode = semiTrans ? GET_TPAGE_BLEND(tpage) : BM_NONE;
 	TexFormat texFormat = GET_TPAGE_FORMAT(tpage);
 	TextureID textureId = textured ? g_vramTexture : g_whiteTexture;
+	const bool depthEnable = false;
 
 	if (textured && overrideTexture != 0)
 	{
@@ -690,6 +738,7 @@ static void AddSplit(bool semiTrans, bool textured)
 		curSplit.texFormat == texFormat &&
 		curSplit.textureId == textureId &&
 		curSplit.drawPrimMode == g_DrawPrimMode &&
+		curSplit.depthEnable == depthEnable &&
 		curSplit.drawenv.clip.x == activeDrawEnv.clip.x &&
 		curSplit.drawenv.clip.y == activeDrawEnv.clip.y &&
 		curSplit.drawenv.clip.w == activeDrawEnv.clip.w &&
@@ -713,6 +762,7 @@ static void AddSplit(bool semiTrans, bool textured)
 	split.texFormat = texFormat;
 	split.textureId = textureId;
 	split.drawPrimMode = g_DrawPrimMode;
+	split.depthEnable = depthEnable;
 	split.drawenv = activeDrawEnv;
 	split.dispenv = activeDispEnv;
 	split.debugText = currentSplitDebugText;
@@ -720,6 +770,35 @@ static void AddSplit(bool semiTrans, bool textured)
 	split.drawenv.tw.w = overrideTextureWidth;
 	split.drawenv.tw.h = overrideTextureHeight;
 
+	split.startVertex = g_vertexIndex;
+	split.numVerts = 0;
+}
+
+static void SetCurrentSplitDepth(bool depthEnable)
+{
+	GPUDrawSplit& curSplit = g_splits[g_splitIndex];
+
+	if (curSplit.depthEnable == depthEnable)
+		return;
+
+	if (curSplit.startVertex == g_vertexIndex)
+	{
+		curSplit.depthEnable = depthEnable;
+		return;
+	}
+
+	curSplit.numVerts = g_vertexIndex - curSplit.startVertex;
+
+	if (g_splitIndex + 1 >= MAX_DRAW_SPLITS)
+	{
+		eprinterr("MAX_DRAW_SPLITS reached (too many depth, blend, texture, drawEnv clip rect, dfe switches), expect rendering errors\n");
+		return;
+	}
+
+	const GPUDrawSplit previousSplit = curSplit;
+	GPUDrawSplit& split = g_splits[++g_splitIndex];
+	split = previousSplit;
+	split.depthEnable = depthEnable;
 	split.startVertex = g_vertexIndex;
 	split.numVerts = 0;
 }
@@ -741,6 +820,7 @@ void DrawSplit(const GPUDrawSplit& split)
 	GR_SetOffscreenState(&split.drawenv.clip, !drawOnScreen);
 
 	GR_SetBlendMode(split.blendMode);
+	GR_EnableDepth(split.depthEnable);
 
 	GR_DrawTriangles(split.startVertex, split.numVerts / 3);
 
@@ -1099,7 +1179,8 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, false);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordTriangleZero(firstVertex, 0);
 		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0);
 
@@ -1121,7 +1202,8 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 			AddSplit(semiTrans, true);
 
 			GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-			MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+			const bool depthEnable = MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+			SetCurrentSplitDepth(depthEnable);
 			MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 			MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0);
 
@@ -1140,7 +1222,8 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, false);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordQuadZero(firstVertex, 0);
 		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
@@ -1160,7 +1243,8 @@ static int ProcessFlatPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, true);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r0, &poly->r0, &poly->r0);
 
@@ -1198,7 +1282,8 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, false);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordTriangleZero(firstVertex, 1);
 		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r2);
 
@@ -1217,7 +1302,8 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, true);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexTriangle(firstVertex, &poly->x0, &poly->x1, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordTriangle(firstVertex, &poly->u0, &poly->u1, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 		MakeColourTriangle(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r2);
 
@@ -1235,7 +1321,8 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, false);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordQuadZero(firstVertex, 1);
 		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r3, &poly->r2);
 
@@ -1256,7 +1343,8 @@ static int ProcessGouraudPoly(P_TAG* polyTag)
 		AddSplit(semiTrans, true);
 
 		GrVertex* firstVertex = &g_vertexBuffer[g_vertexIndex];
-		MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		const bool depthEnable = MakeVertexQuad(firstVertex, &poly->x0, &poly->x1, &poly->x3, &poly->x2, gteIndex);
+		SetCurrentSplitDepth(depthEnable);
 		MakeTexcoordQuad(firstVertex, &poly->u0, &poly->u1, &poly->u3, &poly->u2, poly->tpage, poly->clut, GET_TPAGE_DITHER(activeDrawEnv.tpage) || activeDrawEnv.dtd);
 		MakeColourQuad(firstVertex, shadeTexOn, &poly->r0, &poly->r1, &poly->r3, &poly->r2);
 

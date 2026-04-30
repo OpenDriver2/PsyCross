@@ -39,6 +39,9 @@
 #include <vector>
 #include <algorithm>
 #include <unordered_map>
+#include <float.h>
+#include <math.h>
+#include <stdint.h>
 
 // =======================================================================
 // Engine-side globals (parity with GL backend)
@@ -96,6 +99,7 @@ VkPhysicalDeviceMemoryProperties g_vkMemProps = {};
 VkSwapchainKHR     g_vkSwapchain       = VK_NULL_HANDLE;
 VkFormat           g_vkSwapchainFormat = VK_FORMAT_UNDEFINED;
 VkExtent2D         g_vkSwapchainExtent = {0, 0};
+bool               g_vkSwapchainCanReadback = false;
 std::vector<VkImage>     g_vkSwapchainImages;
 std::vector<VkImageView> g_vkSwapchainImageViews;
 std::vector<VkFramebuffer> g_vkFramebuffers;
@@ -130,13 +134,24 @@ float              g_vkClearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 // GR_Shader_Compile call.
 shaderc_compiler_t   g_shadercCompiler = nullptr;
 
-// One graphics pipeline per PSX blend mode. GR_SetBlendMode picks the
-// active one; GR_DrawTriangles re-binds if it differs from what's
-// currently bound on the command buffer.
+enum
+{
+	kVkDepthDisabled = 0,
+	kVkDepthEnabled = 1,
+	kVkDepthModeCount = 2,
+	kVkBlendModeCount = 5
+};
+
 VkPipelineLayout     g_vkPipelineLayout = VK_NULL_HANDLE;
-VkPipeline           g_vkPipelines[5]   = {}; // indexed by BlendMode enum
-int                  g_vkBoundPipelineIdx = -1;
+VkPipeline           g_vkPipelines[kVkDepthModeCount][kVkBlendModeCount] = {};
+int                  g_vkBoundPipelineKey = -1;
 int                  g_vkActiveBlendMode  = BM_NONE;
+int                  g_vkActiveDepthMode  = kVkDepthEnabled;
+
+static int GetPipelineKey(int depthMode, int blendMode)
+{
+	return depthMode * kVkBlendModeCount + blendMode;
+}
 
 // Default vertex/fragment shader modules used by the solid pipeline.
 VkShaderModule       g_vkVertModule = VK_NULL_HANDLE;
@@ -150,10 +165,10 @@ VkDeviceMemory       g_vkVramImageMem   = VK_NULL_HANDLE;
 VkImageView          g_vkVramImageView  = VK_NULL_HANDLE;
 VkSampler            g_vkVramSampler    = VK_NULL_HANDLE;
 
-// Staging buffer used to upload the CPU-side `vram[]` to the GPU image.
-VkBuffer             g_vkVramStaging      = VK_NULL_HANDLE;
-VkDeviceMemory       g_vkVramStagingMem   = VK_NULL_HANDLE;
-void*                g_vkVramStagingMap   = nullptr;
+// Staging buffers used to upload the CPU-side `vram[]` to the GPU image.
+VkBuffer             g_vkVramStaging[kMaxFramesInFlight]    = {};
+VkDeviceMemory       g_vkVramStagingMem[kMaxFramesInFlight] = {};
+void*                g_vkVramStagingMap[kMaxFramesInFlight] = {};
 
 // Descriptor set layout / pool / set bound to the pipeline at slot 0.
 VkDescriptorSetLayout g_vkDescSetLayout = VK_NULL_HANDLE;
@@ -162,11 +177,11 @@ VkDescriptorSet       g_vkDescSet       = VK_NULL_HANDLE;
 
 bool                 g_vkVramDirty      = true;
 
-// Vertex buffer (host-visible, persistently mapped). Sized to PsyX's
+// Vertex buffers (host-visible, persistently mapped). Sized to PsyX's
 // MAX_VERTEX_BUFFER_SIZE upper bound.
-VkBuffer             g_vkVertexBuffer = VK_NULL_HANDLE;
-VkDeviceMemory       g_vkVertexBufferMem = VK_NULL_HANDLE;
-void*                g_vkVertexBufferMap = nullptr;
+VkBuffer             g_vkVertexBuffer[kMaxFramesInFlight]    = {};
+VkDeviceMemory       g_vkVertexBufferMem[kMaxFramesInFlight] = {};
+void*                g_vkVertexBufferMap[kMaxFramesInFlight] = {};
 uint32_t             g_vkVertexBufferSize = 0; // in vertices currently uploaded
 
 // Push constants — both projection matrices in one block. Vulkan
@@ -202,6 +217,270 @@ unsigned short g_vkVramCPU[VRAM_WIDTH * VRAM_HEIGHT] = {};
 			eprinterr("Vulkan call failed: %s -> %d\n", #expr, _r);   \
 		}                                                             \
 	} while (0)
+
+bool VkDiagEnabled()
+{
+	static int cached = -1;
+	if (cached < 0) {
+		const char* value = getenv("REDRIVER2_VK_DIAG");
+		cached = (value && atoi(value) != 0) ? 1 : 0;
+	}
+	return cached != 0;
+}
+
+int VkDiagInterval()
+{
+	static int cached = -1;
+	if (cached < 0) {
+		const char* value = getenv("REDRIVER2_VK_DIAG_INTERVAL");
+		cached = value ? atoi(value) : 60;
+		if (cached < 1)
+			cached = 1;
+	}
+	return cached;
+}
+
+bool VkDrawLogEnabled()
+{
+	static int cached = -1;
+	if (cached < 0) {
+		const char* value = getenv("REDRIVER2_VK_DRAW_LOG");
+		cached = (value && atoi(value) != 0) ? 1 : 0;
+	}
+	return cached != 0;
+}
+
+int VkCaptureFrame()
+{
+	static int cached = -2;
+	if (cached == -2) {
+		const char* value = getenv("REDRIVER2_VK_CAPTURE_FRAME");
+		cached = value ? atoi(value) : -1;
+	}
+	return cached;
+}
+
+const char* VkCapturePath()
+{
+	const char* path = getenv("REDRIVER2_VK_CAPTURE_PATH");
+	return path ? path : "REDRIVER2_VK_CAPTURE.bmp";
+}
+
+struct VkDiagFrameStats {
+	uint64_t draws;
+	uint64_t triangles;
+	uint64_t depthEnabledDraws;
+	uint64_t depthDisabledDraws;
+	uint64_t depthEnabledTriangles;
+	uint64_t depthDisabledTriangles;
+	uint64_t pgxpTriangles;
+	uint64_t flatTriangles;
+	uint64_t mixedTriangles;
+	uint64_t pgxpWithoutDepth;
+	uint64_t flatWithDepth;
+	uint64_t rejectLeft;
+	uint64_t rejectRight;
+	uint64_t rejectTop;
+	uint64_t rejectBottom;
+	uint64_t rejectNear;
+	uint64_t rejectFar;
+	uint64_t anyNonPositiveW;
+	uint64_t allNonPositiveW;
+	float minW;
+	float maxW;
+	float minZ;
+	float maxZ;
+	float minNdcZ;
+	float maxNdcZ;
+};
+
+VkDiagFrameStats g_vkDiagStats = {};
+uint64_t g_vkDiagFrame = 0;
+
+void VkDiagResetFrame()
+{
+	memset(&g_vkDiagStats, 0, sizeof(g_vkDiagStats));
+	g_vkDiagStats.minW = FLT_MAX;
+	g_vkDiagStats.maxW = -FLT_MAX;
+	g_vkDiagStats.minZ = FLT_MAX;
+	g_vkDiagStats.maxZ = -FLT_MAX;
+	g_vkDiagStats.minNdcZ = FLT_MAX;
+	g_vkDiagStats.maxNdcZ = -FLT_MAX;
+}
+
+void VkDiagMulMat4Vec4(const float* m, const float* in, float* out)
+{
+	out[0] = m[0] * in[0] + m[4] * in[1] + m[8]  * in[2] + m[12] * in[3];
+	out[1] = m[1] * in[0] + m[5] * in[1] + m[9]  * in[2] + m[13] * in[3];
+	out[2] = m[2] * in[0] + m[6] * in[1] + m[10] * in[2] + m[14] * in[3];
+	out[3] = m[3] * in[0] + m[7] * in[1] + m[11] * in[2] + m[15] * in[3];
+}
+
+bool VkDiagVertexIsPGXP(const GrVertex& v)
+{
+#if USE_PGXP
+	return v.scr_h > 100.0f;
+#else
+	(void)v;
+	return false;
+#endif
+}
+
+void VkDiagVertexToClip(const GrVertex& v, float* out)
+{
+#if USE_PGXP
+	const bool fmvLike = (v.z == 0.0f && v.scr_h == 0.0f && v.a == 0);
+	if (fmvLike) {
+		out[0] = v.x;
+		out[1] = v.y;
+		out[2] = 0.5f;
+		out[3] = 1.0f;
+	} else if (v.scr_h > 100.0f) {
+		const float in[4] = {
+			(v.x + 0.5f) * v.scr_h,
+			(v.y + 0.5f) * -v.scr_h,
+			v.z,
+			1.0f
+		};
+		VkDiagMulMat4Vec4(g_vkPushBlock.Projection3D, in, out);
+		out[0] += v.ofsX * out[3];
+		out[1] += -v.ofsY * out[3];
+	} else {
+		const float in[4] = { v.x, v.y, 0.5f, 1.0f };
+		VkDiagMulMat4Vec4(g_vkPushBlock.Projection, in, out);
+	}
+#else
+	const float in[4] = { (float)v.x, (float)v.y, 0.5f, 1.0f };
+	VkDiagMulMat4Vec4(g_vkPushBlock.Projection, in, out);
+#endif
+	out[2] = (out[2] + out[3]) * 0.5f;
+}
+
+void VkDiagAccumulateDraw(int startVertex, int triangles)
+{
+	if (!VkDiagEnabled() || triangles <= 0)
+		return;
+
+	const GrVertex* vertices = (const GrVertex*)g_vkVertexBufferMap[g_vkCurrentFrame];
+	if (!vertices)
+		return;
+
+	const int maxTriangles = std::max(0, ((int)g_vkVertexBufferSize - startVertex) / 3);
+	triangles = std::min(triangles, maxTriangles);
+	if (triangles <= 0)
+		return;
+
+	g_vkDiagStats.draws++;
+	g_vkDiagStats.triangles += (uint64_t)triangles;
+
+	const int depthIdx = (g_vkActiveDepthMode == kVkDepthEnabled && g_cfg_pgxpZBuffer)
+		? kVkDepthEnabled : kVkDepthDisabled;
+
+	if (depthIdx == kVkDepthEnabled) {
+		g_vkDiagStats.depthEnabledDraws++;
+		g_vkDiagStats.depthEnabledTriangles += (uint64_t)triangles;
+	} else {
+		g_vkDiagStats.depthDisabledDraws++;
+		g_vkDiagStats.depthDisabledTriangles += (uint64_t)triangles;
+	}
+
+	for (int i = 0; i < triangles; ++i) {
+		const GrVertex* tri = vertices + startVertex + i * 3;
+		float clip[3][4];
+		int pgxpVerts = 0;
+		int nonPositiveW = 0;
+
+		for (int v = 0; v < 3; ++v) {
+			if (VkDiagVertexIsPGXP(tri[v]))
+				pgxpVerts++;
+
+			VkDiagVertexToClip(tri[v], clip[v]);
+
+			if (clip[v][3] <= 0.0f)
+				nonPositiveW++;
+
+			g_vkDiagStats.minW = std::min(g_vkDiagStats.minW, clip[v][3]);
+			g_vkDiagStats.maxW = std::max(g_vkDiagStats.maxW, clip[v][3]);
+			g_vkDiagStats.minZ = std::min(g_vkDiagStats.minZ, clip[v][2]);
+			g_vkDiagStats.maxZ = std::max(g_vkDiagStats.maxZ, clip[v][2]);
+
+			if (fabsf(clip[v][3]) > 0.000001f) {
+				const float ndcZ = clip[v][2] / clip[v][3];
+				g_vkDiagStats.minNdcZ = std::min(g_vkDiagStats.minNdcZ, ndcZ);
+				g_vkDiagStats.maxNdcZ = std::max(g_vkDiagStats.maxNdcZ, ndcZ);
+			}
+		}
+
+		if (pgxpVerts == 3) {
+			g_vkDiagStats.pgxpTriangles++;
+			if (depthIdx != kVkDepthEnabled)
+				g_vkDiagStats.pgxpWithoutDepth++;
+		} else if (pgxpVerts == 0) {
+			g_vkDiagStats.flatTriangles++;
+			if (depthIdx == kVkDepthEnabled)
+				g_vkDiagStats.flatWithDepth++;
+		} else {
+			g_vkDiagStats.mixedTriangles++;
+		}
+
+		if (nonPositiveW > 0)
+			g_vkDiagStats.anyNonPositiveW++;
+		if (nonPositiveW == 3)
+			g_vkDiagStats.allNonPositiveW++;
+
+		if (clip[0][0] < -clip[0][3] && clip[1][0] < -clip[1][3] && clip[2][0] < -clip[2][3])
+			g_vkDiagStats.rejectLeft++;
+		if (clip[0][0] > clip[0][3] && clip[1][0] > clip[1][3] && clip[2][0] > clip[2][3])
+			g_vkDiagStats.rejectRight++;
+		if (clip[0][1] < -clip[0][3] && clip[1][1] < -clip[1][3] && clip[2][1] < -clip[2][3])
+			g_vkDiagStats.rejectTop++;
+		if (clip[0][1] > clip[0][3] && clip[1][1] > clip[1][3] && clip[2][1] > clip[2][3])
+			g_vkDiagStats.rejectBottom++;
+		if (clip[0][2] < 0.0f && clip[1][2] < 0.0f && clip[2][2] < 0.0f)
+			g_vkDiagStats.rejectNear++;
+		if (clip[0][2] > clip[0][3] && clip[1][2] > clip[1][3] && clip[2][2] > clip[2][3])
+			g_vkDiagStats.rejectFar++;
+	}
+}
+
+void VkDiagLogFrame()
+{
+	if (!VkDiagEnabled() || g_vkDiagStats.triangles == 0)
+		return;
+
+	if ((g_vkDiagFrame % (uint64_t)VkDiagInterval()) != 0)
+		return;
+
+	eprintinfo("[VKDIAG][frame=%llu] draws=%llu tris=%llu depth on/off draws=%llu/%llu tris=%llu/%llu pgxp=%llu flat=%llu mixed=%llu bad pgxpNoDepth/flatDepth=%llu/%llu "
+		"clipReject L/R/T/B/N/F=%llu/%llu/%llu/%llu/%llu/%llu w<=0 any/all=%llu/%llu "
+		"clipW=[%.3f %.3f] clipZ=[%.3f %.3f] ndcZ=[%.3f %.3f]\n",
+		(unsigned long long)g_vkDiagFrame,
+		(unsigned long long)g_vkDiagStats.draws,
+		(unsigned long long)g_vkDiagStats.triangles,
+		(unsigned long long)g_vkDiagStats.depthEnabledDraws,
+		(unsigned long long)g_vkDiagStats.depthDisabledDraws,
+		(unsigned long long)g_vkDiagStats.depthEnabledTriangles,
+		(unsigned long long)g_vkDiagStats.depthDisabledTriangles,
+		(unsigned long long)g_vkDiagStats.pgxpTriangles,
+		(unsigned long long)g_vkDiagStats.flatTriangles,
+		(unsigned long long)g_vkDiagStats.mixedTriangles,
+		(unsigned long long)g_vkDiagStats.pgxpWithoutDepth,
+		(unsigned long long)g_vkDiagStats.flatWithDepth,
+		(unsigned long long)g_vkDiagStats.rejectLeft,
+		(unsigned long long)g_vkDiagStats.rejectRight,
+		(unsigned long long)g_vkDiagStats.rejectTop,
+		(unsigned long long)g_vkDiagStats.rejectBottom,
+		(unsigned long long)g_vkDiagStats.rejectNear,
+		(unsigned long long)g_vkDiagStats.rejectFar,
+		(unsigned long long)g_vkDiagStats.anyNonPositiveW,
+		(unsigned long long)g_vkDiagStats.allNonPositiveW,
+		(double)g_vkDiagStats.minW,
+		(double)g_vkDiagStats.maxW,
+		(double)g_vkDiagStats.minZ,
+		(double)g_vkDiagStats.maxZ,
+		(double)g_vkDiagStats.minNdcZ,
+		(double)g_vkDiagStats.maxNdcZ);
+}
 
 uint32_t FindMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyFlags wanted)
 {
@@ -266,6 +545,74 @@ bool CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
 
 	VK_CHECK(vkBindBufferMemory(g_vkDevice, *outBuffer, *outMem, 0));
 	return true;
+}
+
+void SwapchainImageBarrier(VkCommandBuffer cb,
+                           VkImageLayout oldLayout, VkImageLayout newLayout,
+                           VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+                           VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage)
+{
+	VkImageMemoryBarrier b = {};
+	b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	b.oldLayout = oldLayout;
+	b.newLayout = newLayout;
+	b.srcAccessMask = srcAccess;
+	b.dstAccessMask = dstAccess;
+	b.image = g_vkSwapchainImages[g_vkAcquiredImageIdx];
+	b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	b.subresourceRange.levelCount = 1;
+	b.subresourceRange.layerCount = 1;
+	vkCmdPipelineBarrier(cb, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &b);
+}
+
+bool WriteBgraBmp(const char* path, const unsigned char* pixels, uint32_t width, uint32_t height)
+{
+	FILE* fp = fopen(path, "wb");
+	if (!fp)
+		return false;
+
+	const uint32_t pixelBytes = width * height * 4;
+	const uint32_t fileBytes = 14 + 40 + pixelBytes;
+	const int32_t topDownHeight = -(int32_t)height;
+	unsigned char fileHeader[14] = {
+		'B', 'M',
+		(unsigned char)(fileBytes), (unsigned char)(fileBytes >> 8), (unsigned char)(fileBytes >> 16), (unsigned char)(fileBytes >> 24),
+		0, 0, 0, 0,
+		54, 0, 0, 0
+	};
+	unsigned char infoHeader[40] = {};
+	infoHeader[0] = 40;
+	infoHeader[4] = (unsigned char)(width);
+	infoHeader[5] = (unsigned char)(width >> 8);
+	infoHeader[6] = (unsigned char)(width >> 16);
+	infoHeader[7] = (unsigned char)(width >> 24);
+	infoHeader[8] = (unsigned char)(topDownHeight);
+	infoHeader[9] = (unsigned char)(topDownHeight >> 8);
+	infoHeader[10] = (unsigned char)(topDownHeight >> 16);
+	infoHeader[11] = (unsigned char)(topDownHeight >> 24);
+	infoHeader[12] = 1;
+	infoHeader[14] = 32;
+
+	fwrite(fileHeader, 1, sizeof(fileHeader), fp);
+	fwrite(infoHeader, 1, sizeof(infoHeader), fp);
+	fwrite(pixels, 1, pixelBytes, fp);
+	fclose(fp);
+	return true;
+}
+
+void ConvertSwapchainPixelsToBgra(unsigned char* pixels, uint32_t width, uint32_t height)
+{
+	if (g_vkSwapchainFormat == VK_FORMAT_B8G8R8A8_UNORM ||
+		g_vkSwapchainFormat == VK_FORMAT_B8G8R8A8_SRGB)
+		return;
+
+	if (g_vkSwapchainFormat == VK_FORMAT_R8G8B8A8_UNORM ||
+		g_vkSwapchainFormat == VK_FORMAT_R8G8B8A8_SRGB) {
+		for (uint32_t i = 0; i < width * height; ++i) {
+			unsigned char* p = pixels + i * 4;
+			std::swap(p[0], p[2]);
+		}
+	}
 }
 
 VkShaderModule CreateShaderModule(const uint32_t* spirv, size_t bytes)
@@ -362,139 +709,116 @@ void main() {
     if (fmvLike) {
         gl_Position = vec4(a_position.xy, 0.5, 1.0);
     } else if (a_zw.y > 100.0) {
-        gl_Position = pb.Projection3D * vec4(a_position.xy * a_zw.y, a_zw.x, 1.0);
+        const vec2 geom_ofs = vec2(0.5, 0.5);
+        vec4 p = pb.Projection3D * vec4((a_position.xy + geom_ofs) *
+                                          vec2(1.0, -1.0) * a_zw.y,
+                                         a_zw.x, 1.0);
+        p.x += a_zw.z * p.w;
+        p.y += -a_zw.w * p.w;
+        gl_Position = p;
     } else {
         gl_Position = pb.Projection * vec4(a_position.xy, 0.5, 1.0);
     }
 
-    // GL→Vulkan NDC z remap. The projection matrices were copied verbatim
-    // from the OpenGL backend, which emits clip-space z in [-w, w] (NDC
-    // z ∈ [-1, 1]). Vulkan's clip volume is z ∈ [0, w] (NDC z ∈ [0, 1]),
-    // so without this remap every primitive lands outside the clip volume
-    // and gets discarded — leaving the screen black.
     gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;
+
     v_color = a_color;
     v_texcoord = a_texcoord;
 
-    // PSX texture page → VRAM coords:
-    //   page is bits-packed: low 4 bits = X / 64, next 1 bit = Y / 256
-    //   the actual texture page format (4/8/16-bit) is in bits 7-8 of the
-    //   tpage word, but we receive `page` already split.
-    // For a first cut we extract:
-    //   page_x = (page & 0x0F) * 64
-    //   page_y = ((page >> 4) & 0x01) * 256
-    //   tex_format = (page >> 7) & 0x03   (0=4bit, 1=8bit, 2/3=16bit)
-    //   clut_x = (clut & 0x3F) * 16
-    //   clut_y = (clut >> 6)
-    // Pass them along so the fragment shader can sample.
+    // page → pixel coords, clut → NORMALISED [0, 1] coords.
     float pageRaw = a_position.z;
     float clutRaw = a_position.w;
-    float pageX = mod(pageRaw, 16.0) * 64.0;
-    float pageY = floor(pageRaw / 16.0);
-    pageY = mod(pageY, 2.0) * 256.0;
-    float texFormat = floor(pageRaw / 128.0);
-    texFormat = mod(texFormat, 4.0);
-    float clutX = mod(clutRaw, 64.0) * 16.0;
-    float clutY = floor(clutRaw / 64.0);
-    v_page_clut = vec4(pageX, pageY, clutX, clutY);
-    // Stash format in the otherwise-unused dither slot so the fragment
-    // shader picks the right decode path.
-    v_texcoord.w = texFormat;
+    v_page_clut.x = fract(pageRaw / 16.0) * 1024.0;
+    v_page_clut.y = floor(pageRaw / 16.0) * 256.0;
+    v_page_clut.z = fract(clutRaw / 64.0);
+    v_page_clut.w = floor(clutRaw / 64.0) / 512.0;
+    // [A] Sub-texel bias (matches GL backend's c_UVFudge): nudge clut UV
+    // away from a texel boundary so NEAREST sampling can't drift one
+    // texel left and pull index-0 (transparency mask) for 4-bit STP=1
+    // sprites like the car wheels. zw is normalised, x/y are pixel-space
+    // and already have the integer-pixel center implied by R8G8 sampling.
+    v_page_clut.zw += vec2(0.00025, 0.00025);
+    v_texcoord.w = mod(floor(pageRaw / 128.0), 4.0);
 }
 )GLSL";
 
 const char* kBasicFragSrc = R"GLSL(
 #version 450
+// 1:1 port of the GL backend's GPU_FRAGMENT_SAMPLE_SHADER (4/8/16-bit
+// variants merged into one branched routine, since we don't have multi-
+// pipeline shader switching yet). VRAM is exposed as R8G8_UNORM:
+// low byte → .r, high byte → .g (matches GL's GL_RG / GL_UNSIGNED_BYTE
+// upload of the engine's `unsigned short vram[]`).
+// v_texcoord.w doubles as the texture format (0=4-bit, 1=8-bit, 2=16-bit)
+// — the vertex shader writes it there. Frees us from a separate varying
+// slot at the cost of overwriting the dither index, which we don't sample
+// in this revision anyway.
 layout(location = 0) in vec4 v_color;
-layout(location = 1) in vec4 v_texcoord;     // u, v, bright, texFormat
-layout(location = 2) in vec4 v_page_clut;    // pageX, pageY, clutX, clutY
+layout(location = 1) in vec4 v_texcoord;
+layout(location = 2) in vec4 v_page_clut;
 
 layout(location = 0) out vec4 out_color;
 
-// VRAM as R8G8 unorm (low byte = R, high byte = G).
 layout(set = 0, binding = 0) uniform sampler2D s_vram;
 
-const float VRAM_W = 1024.0;
-const float VRAM_H = 512.0;
+const vec2  c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);
+const float c_PackRange = 255.001;
 
-// Decode a 16-bit packed (low,high) byte pair to the raw u16 value.
-float pack_rg_u16(vec2 rg) {
-    return floor(rg.x * 255.0 + 0.5) + floor(rg.y * 255.0 + 0.5) * 256.0;
+// Inline the GL helpers verbatim — same pack / decode arithmetic.
+float packRG(vec2 rg) {
+    return (rg.y * 256.0 + rg.x) * c_PackRange;
 }
-
-// PSX 16-bit pixel — bits 0-4 = R, 5-9 = G, 10-14 = B, bit 15 = STP
-// (semitransparency / mask). When STP=0 the pixel is opaque (alpha=1),
-// when STP=1 it should blend with the active ABR mode (alpha=0.5 so
-// VK_BLEND_FACTOR_SRC_ALPHA in the BM_AVERAGE pipeline produces the
-// 50/50 mix the PSX expects; the BM_ADD/SUBTRACT pipelines ignore the
-// alpha because their factors are ONE/ONE).
-vec4 psx16_to_rgba(float v16) {
-    float r = mod(v16, 32.0);                v16 = floor(v16 / 32.0);
-    float g = mod(v16, 32.0);                v16 = floor(v16 / 32.0);
-    float b = mod(v16, 32.0);                v16 = floor(v16 / 32.0);
-    float stp = mod(v16, 2.0);  // 0 or 1
-    return vec4(r / 31.0, g / 31.0, b / 31.0, stp > 0.5 ? 0.5 : 1.0);
+vec4 decodeRG(float rg) {
+    vec4 value = fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0);
+    return vec4(value.xyz, rg == 0.0 ? rg : (1.0 - value.w * 16.0));
 }
+vec2 VRAM(vec2 uv) { return texture(s_vram, uv).rg; }
 
-// Read the raw 16-bit value at integer VRAM (x,y).
-float read_vram_u16(float x, float y) {
-    vec2 uv = vec2((x + 0.5) / VRAM_W, (y + 0.5) / VRAM_H);
-    return pack_rg_u16(texture(s_vram, uv).rg);
+float samplePSX(vec2 tc) {
+    float fmt = v_texcoord.w;
+    if (fmt < 0.5) {
+        // 4-bit paletted: 4 pixels per VRAM cell
+        vec2 uv = (tc * vec2(0.25, 1.0) + v_page_clut.xy) * c_VRAMTexel;
+        vec2 comp = VRAM(uv);
+        int  index = int(fract(tc.x / 4.0 + 0.0001) * 4.0);
+        // pull the right nibble from the (low, high) bytes
+        float v = (index < 2 ? comp.x : comp.y) * (c_PackRange / 16.0);
+        float f = floor(v);
+        vec2 c = vec2((v - f) * 16.0, f);
+        vec2 clut_pos = v_page_clut.zw;
+        clut_pos.x += mix(c[0], c[1], mod(float(index), 2.0)) * c_VRAMTexel.x;
+        return packRG(VRAM(clut_pos));
+    } else if (fmt < 1.5) {
+        // 8-bit paletted: 2 pixels per VRAM cell
+        vec2 uv = (tc * vec2(0.5, 1.0) + v_page_clut.xy) * c_VRAMTexel;
+        vec2 comp = VRAM(uv);
+        vec2 clut_pos = v_page_clut.zw;
+        int index = int(mod(tc.x, 2.0));
+        clut_pos.x += (index == 0 ? comp.x : comp.y) * c_PackRange * c_VRAMTexel.x;
+        return packRG(VRAM(clut_pos));
+    } else {
+        // 16-bit direct
+        vec2 uv = (tc + v_page_clut.xy) * c_VRAMTexel;
+        return packRG(VRAM(uv));
+    }
 }
 
 void main() {
-    // bright (a_texcoord.z, raw u8 0..255) is the engine's untextured
-    // marker: PsyX_GPU::MakeTexcoordTriangleZero/QuadZero set bright=1
-    // for untextured fills, MakeTexcoordTriangle/Quad sets bright=2 for
-    // textured ones. So bright<=1.5 → no texture sampling, just vertex
-    // colour. Avoids the "page=0+uv=0 happens to be a real texel"
-    // ambiguity that previously made the player character grey.
+    // Untextured fill (engine sets bright=1 for these via
+    // MakeTexcoordTriangleZero/QuadZero); flat-shaded vertex colour
+    // doubled so PSX-neutral rgba=128 (=0.5 normalised) lands at 1.0.
     if (v_texcoord.z < 1.5) {
         out_color = vec4(min(v_color.rgb * 2.0, vec3(1.0)), 1.0);
         return;
     }
 
-    // FLOOR the interpolated UV to integer texel coordinates BEFORE doing
-    // any palette-index math. Otherwise sub-texel fractions leak into
-    // mod(u,2)/mod(u,4)/pow(16,sub) and produce wrong palette indices,
-    // which manifests as the high-frequency noise pattern across the whole
-    // textured surface.
-    float u = floor(v_texcoord.x + 0.0001);   // 0..255 integer texel
-    float v = floor(v_texcoord.y + 0.0001);
-    float fmt = v_texcoord.w;      // 0=4bit, 1=8bit, 2/3=16bit
-    vec2 page = v_page_clut.xy;
-    vec2 clut = v_page_clut.zw;
+    float color_16 = samplePSX(v_texcoord.xy);
+    if (color_16 == 0.0) discard;
+    vec4 texel = decodeRG(color_16);
 
-    vec4 texel;
-    if (fmt < 0.5) {
-        // 4-bit paletted: 4 pixels per VRAM cell
-        float cellX = page.x + floor(u / 4.0);
-        float cellY = page.y + v;
-        float cell  = read_vram_u16(cellX, cellY);
-        float subX  = mod(u, 4.0);
-        float nibble = floor(cell / pow(16.0, subX));
-        nibble = mod(nibble, 16.0);
-        float c16 = read_vram_u16(clut.x + nibble, clut.y);
-        if (c16 == 0.0) discard;
-        texel = psx16_to_rgba(c16);
-    } else if (fmt < 1.5) {
-        // 8-bit paletted: 2 pixels per VRAM cell
-        float cellX = page.x + floor(u / 2.0);
-        float cellY = page.y + v;
-        float cell  = read_vram_u16(cellX, cellY);
-        float idx   = (mod(u, 2.0) < 0.5) ? mod(cell, 256.0) : floor(cell / 256.0);
-        float c16   = read_vram_u16(clut.x + idx, clut.y);
-        if (c16 == 0.0) discard;
-        texel = psx16_to_rgba(c16);
-    } else {
-        // 16-bit direct
-        float c16 = read_vram_u16(page.x + u, page.y + v);
-        if (c16 == 0.0) discard;
-        texel = psx16_to_rgba(c16);
-    }
-
-    // PSX modulates texel by 2× the vertex colour (rgba=128 → 1.0).
-    out_color = vec4(texel.rgb * min(v_color.rgb * 2.0, vec3(1.0)), texel.a);
+    // Same x2 modulation as the untextured path so neutral PSX vertex
+    // colour (rgba=128) doesn't dim the texture by 50 %.
+    out_color = vec4(texel.rgb * min(v_color.rgb * 2.0, vec3(1.0)), 1.0);
 }
 )GLSL";
 
@@ -641,6 +965,9 @@ bool CreateSwapchain(int width, int height)
 	ci.imageExtent = extent;
 	ci.imageArrayLayers = 1;
 	ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	g_vkSwapchainCanReadback = (caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0;
+	if (g_vkSwapchainCanReadback)
+		ci.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 	uint32_t qf[2] = { g_vkGraphicsQueueFamily, g_vkPresentQueueFamily };
 	if (g_vkGraphicsQueueFamily != g_vkPresentQueueFamily) {
@@ -832,23 +1159,33 @@ bool CreateVramImage()
 	si.magFilter = VK_FILTER_NEAREST;
 	si.minFilter = VK_FILTER_NEAREST;
 	si.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-	si.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	si.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	// [A] REPEAT, NOT CLAMP. The GL backend's tpage→UV math (`floor(pageRaw/16)*256`
+	// for page Y, `fract(pageRaw/16)*1024` for X) lets bits 5+ of tpage —
+	// which encode ABR / TP / dither — leak into the address. GL silently
+	// folds them back via the default GL_REPEAT wrap. With CLAMP_TO_EDGE
+	// every textured primitive whose tpage has TP=1 (8-bit) or ABR>0 ends
+	// up sampling row 511 of VRAM (the edge), so wheels/particles/anything
+	// that uses semitransparency reads garbage and renders as solid blocks.
+	si.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	si.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	si.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	si.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 	si.unnormalizedCoordinates = VK_FALSE;
 	si.compareEnable = VK_FALSE;
 	VK_CHECK(vkCreateSampler(g_vkDevice, &si, nullptr, &g_vkVramSampler));
 
-	// Staging buffer (host-visible, persistently mapped) for VRAM uploads.
+	// One host-visible staging buffer per frame in flight. The CPU can start
+	// preparing frame N+1 before frame N's transfer has consumed its source.
 	const VkDeviceSize vramBytes = (VkDeviceSize)VRAM_WIDTH * VRAM_HEIGHT * sizeof(uint16_t);
-	if (!CreateBuffer(vramBytes,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&g_vkVramStaging, &g_vkVramStagingMem)) {
-		return false;
+	for (int i = 0; i < kMaxFramesInFlight; ++i) {
+		if (!CreateBuffer(vramBytes,
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&g_vkVramStaging[i], &g_vkVramStagingMem[i])) {
+			return false;
+		}
+		VK_CHECK(vkMapMemory(g_vkDevice, g_vkVramStagingMem[i], 0, VK_WHOLE_SIZE, 0, &g_vkVramStagingMap[i]));
 	}
-	VK_CHECK(vkMapMemory(g_vkDevice, g_vkVramStagingMem, 0, VK_WHOLE_SIZE, 0, &g_vkVramStagingMap));
 	return true;
 }
 
@@ -934,7 +1271,7 @@ void TransitionVramToShaderRead(VkCommandBuffer cb)
 	r.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	r.imageSubresource.layerCount = 1;
 	r.imageExtent = { VRAM_WIDTH, VRAM_HEIGHT, 1 };
-	vkCmdCopyBufferToImage(cb, g_vkVramStaging, g_vkVramImage,
+	vkCmdCopyBufferToImage(cb, g_vkVramStaging[g_vkCurrentFrame], g_vkVramImage,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &r);
 
 	VramImageBarrier(cb,
@@ -1032,8 +1369,12 @@ bool CreateBasicGraphicsPipeline()
 	dsOpaque.depthWriteEnable = VK_TRUE;
 	dsOpaque.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
-	VkPipelineDepthStencilStateCreateInfo dsBlend = dsOpaque;
-	dsBlend.depthWriteEnable = VK_FALSE;
+		VkPipelineDepthStencilStateCreateInfo dsBlend = dsOpaque;
+		dsBlend.depthWriteEnable = VK_FALSE;
+
+		VkPipelineDepthStencilStateCreateInfo dsDisabled = dsOpaque;
+		dsDisabled.depthTestEnable = VK_FALSE;
+		dsDisabled.depthWriteEnable = VK_FALSE;
 
 	// PSX blend modes — see GP0 ABR field. Mirror exactly what the GL
 	// backend does in GR_SetBlendMode (PsyX_render.cpp) so semi-trans
@@ -1087,13 +1428,13 @@ bool CreateBasicGraphicsPipeline()
 		return a;
 	};
 
-	VkPipelineColorBlendAttachmentState cbaArr[5];
-	VkPipelineColorBlendStateCreateInfo cbArr[5] = {};
-	for (int i = 0; i < 5; ++i) {
-		cbaArr[i] = blendForMode(i);
-		cbArr[i].sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-		cbArr[i].attachmentCount = 1;
-		cbArr[i].pAttachments = &cbaArr[i];
+		VkPipelineColorBlendAttachmentState cbaArr[kVkBlendModeCount];
+		VkPipelineColorBlendStateCreateInfo cbArr[kVkBlendModeCount] = {};
+		for (int i = 0; i < kVkBlendModeCount; ++i) {
+			cbaArr[i] = blendForMode(i);
+			cbArr[i].sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+			cbArr[i].attachmentCount = 1;
+			cbArr[i].pAttachments = &cbaArr[i];
 	}
 
 	VkDynamicState dynStates[] = {
@@ -1130,15 +1471,17 @@ bool CreateBasicGraphicsPipeline()
 	gpci.renderPass = g_vkClearRenderPass;
 	gpci.subpass = 0;
 
-	// Build one PSO per blend mode — same vertex/fragment, the colour-
-	// blend state and depth-write change. GR_SetBlendMode picks the
-	// right index, GR_DrawTriangles re-binds when it changes.
+	// Build PSO variants for blend mode and depth state.
 	bool ok = true;
-	for (int i = 0; i < 5; ++i) {
-		gpci.pColorBlendState = &cbArr[i];
-		gpci.pDepthStencilState = (i == BM_NONE) ? &dsOpaque : &dsBlend;
-		VK_CHECK(vkCreateGraphicsPipelines(g_vkDevice, VK_NULL_HANDLE, 1, &gpci, nullptr, &g_vkPipelines[i]));
-		if (g_vkPipelines[i] == VK_NULL_HANDLE) ok = false;
+	for (int depthMode = 0; depthMode < kVkDepthModeCount; ++depthMode) {
+		for (int i = 0; i < kVkBlendModeCount; ++i) {
+			gpci.pColorBlendState = &cbArr[i];
+			gpci.pDepthStencilState = (depthMode == kVkDepthEnabled)
+				? ((i == BM_NONE) ? &dsOpaque : &dsBlend)
+				: &dsDisabled;
+			VK_CHECK(vkCreateGraphicsPipelines(g_vkDevice, VK_NULL_HANDLE, 1, &gpci, nullptr, &g_vkPipelines[depthMode][i]));
+			if (g_vkPipelines[depthMode][i] == VK_NULL_HANDLE) ok = false;
+		}
 	}
 	return ok;
 }
@@ -1146,13 +1489,15 @@ bool CreateBasicGraphicsPipeline()
 bool CreateVertexBuffer()
 {
 	const VkDeviceSize totalBytes = (VkDeviceSize)sizeof(GrVertex) * MAX_VERTEX_BUFFER_SIZE;
-	if (!CreateBuffer(totalBytes,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&g_vkVertexBuffer, &g_vkVertexBufferMem)) {
-		return false;
+	for (int i = 0; i < kMaxFramesInFlight; ++i) {
+		if (!CreateBuffer(totalBytes,
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&g_vkVertexBuffer[i], &g_vkVertexBufferMem[i])) {
+			return false;
+		}
+		VK_CHECK(vkMapMemory(g_vkDevice, g_vkVertexBufferMem[i], 0, VK_WHOLE_SIZE, 0, &g_vkVertexBufferMap[i]));
 	}
-	VK_CHECK(vkMapMemory(g_vkDevice, g_vkVertexBufferMem, 0, VK_WHOLE_SIZE, 0, &g_vkVertexBufferMap));
 	return true;
 }
 
@@ -1309,17 +1654,21 @@ void GR_Shutdown()
 		g_shadercCompiler = nullptr;
 	}
 
-	if (g_vkVertexBufferMap)  { vkUnmapMemory(g_vkDevice, g_vkVertexBufferMem); g_vkVertexBufferMap = nullptr; }
-	if (g_vkVertexBuffer)     { vkDestroyBuffer(g_vkDevice, g_vkVertexBuffer, nullptr);     g_vkVertexBuffer = VK_NULL_HANDLE; }
-	if (g_vkVertexBufferMem)  { vkFreeMemory(g_vkDevice, g_vkVertexBufferMem, nullptr);     g_vkVertexBufferMem = VK_NULL_HANDLE; }
+	for (int i = 0; i < kMaxFramesInFlight; ++i) {
+		if (g_vkVertexBufferMap[i]) { vkUnmapMemory(g_vkDevice, g_vkVertexBufferMem[i]); g_vkVertexBufferMap[i] = nullptr; }
+		if (g_vkVertexBuffer[i])    { vkDestroyBuffer(g_vkDevice, g_vkVertexBuffer[i], nullptr); g_vkVertexBuffer[i] = VK_NULL_HANDLE; }
+		if (g_vkVertexBufferMem[i]) { vkFreeMemory(g_vkDevice, g_vkVertexBufferMem[i], nullptr); g_vkVertexBufferMem[i] = VK_NULL_HANDLE; }
+	}
 
 	if (g_vkDepthImageView)   { vkDestroyImageView(g_vkDevice, g_vkDepthImageView, nullptr); g_vkDepthImageView = VK_NULL_HANDLE; }
 	if (g_vkDepthImage)       { vkDestroyImage(g_vkDevice, g_vkDepthImage, nullptr); g_vkDepthImage = VK_NULL_HANDLE; }
 	if (g_vkDepthImageMem)    { vkFreeMemory(g_vkDevice, g_vkDepthImageMem, nullptr); g_vkDepthImageMem = VK_NULL_HANDLE; }
 
-	if (g_vkVramStagingMap)   { vkUnmapMemory(g_vkDevice, g_vkVramStagingMem); g_vkVramStagingMap = nullptr; }
-	if (g_vkVramStaging)      { vkDestroyBuffer(g_vkDevice, g_vkVramStaging, nullptr); g_vkVramStaging = VK_NULL_HANDLE; }
-	if (g_vkVramStagingMem)   { vkFreeMemory(g_vkDevice, g_vkVramStagingMem, nullptr); g_vkVramStagingMem = VK_NULL_HANDLE; }
+	for (int i = 0; i < kMaxFramesInFlight; ++i) {
+		if (g_vkVramStagingMap[i]) { vkUnmapMemory(g_vkDevice, g_vkVramStagingMem[i]); g_vkVramStagingMap[i] = nullptr; }
+		if (g_vkVramStaging[i])    { vkDestroyBuffer(g_vkDevice, g_vkVramStaging[i], nullptr); g_vkVramStaging[i] = VK_NULL_HANDLE; }
+		if (g_vkVramStagingMem[i]) { vkFreeMemory(g_vkDevice, g_vkVramStagingMem[i], nullptr); g_vkVramStagingMem[i] = VK_NULL_HANDLE; }
+	}
 	if (g_vkVramSampler)      { vkDestroySampler(g_vkDevice, g_vkVramSampler, nullptr); g_vkVramSampler = VK_NULL_HANDLE; }
 	if (g_vkVramImageView)    { vkDestroyImageView(g_vkDevice, g_vkVramImageView, nullptr); g_vkVramImageView = VK_NULL_HANDLE; }
 	if (g_vkVramImage)        { vkDestroyImage(g_vkDevice, g_vkVramImage, nullptr); g_vkVramImage = VK_NULL_HANDLE; }
@@ -1328,8 +1677,10 @@ void GR_Shutdown()
 	if (g_vkDescPool)         { vkDestroyDescriptorPool(g_vkDevice, g_vkDescPool, nullptr); g_vkDescPool = VK_NULL_HANDLE; }
 	if (g_vkDescSetLayout)    { vkDestroyDescriptorSetLayout(g_vkDevice, g_vkDescSetLayout, nullptr); g_vkDescSetLayout = VK_NULL_HANDLE; }
 
-	for (int i = 0; i < 5; ++i) {
-		if (g_vkPipelines[i]) { vkDestroyPipeline(g_vkDevice, g_vkPipelines[i], nullptr); g_vkPipelines[i] = VK_NULL_HANDLE; }
+	for (int depthMode = 0; depthMode < kVkDepthModeCount; ++depthMode) {
+		for (int i = 0; i < kVkBlendModeCount; ++i) {
+			if (g_vkPipelines[depthMode][i]) { vkDestroyPipeline(g_vkDevice, g_vkPipelines[depthMode][i], nullptr); g_vkPipelines[depthMode][i] = VK_NULL_HANDLE; }
+		}
 	}
 	if (g_vkPipelineLayout)   { vkDestroyPipelineLayout(g_vkDevice, g_vkPipelineLayout, nullptr); g_vkPipelineLayout = VK_NULL_HANDLE; }
 	if (g_vkVertModule)       { vkDestroyShaderModule(g_vkDevice, g_vkVertModule, nullptr); g_vkVertModule = VK_NULL_HANDLE; }
@@ -1365,6 +1716,9 @@ void GR_BeginScene()
 {
 	if (g_vkSceneRecording) return;
 
+	g_vkDiagFrame++;
+	VkDiagResetFrame();
+
 	vkWaitForFences(g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX);
 
 	VkResult ar = vkAcquireNextImageKHR(g_vkDevice, g_vkSwapchain, UINT64_MAX,
@@ -1391,7 +1745,7 @@ void GR_BeginScene()
 	// are not allowed inside one.
 	if (g_vkVramDirty) {
 		// Refresh the staging buffer from the CPU mirror.
-		memcpy(g_vkVramStagingMap, g_vkVramCPU, sizeof(g_vkVramCPU));
+		memcpy(g_vkVramStagingMap[g_vkCurrentFrame], g_vkVramCPU, sizeof(g_vkVramCPU));
 
 		// SHADER_READ_ONLY → TRANSFER_DST → copy → SHADER_READ_ONLY
 		VramImageBarrier(cb,
@@ -1403,7 +1757,7 @@ void GR_BeginScene()
 		r.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		r.imageSubresource.layerCount = 1;
 		r.imageExtent = { VRAM_WIDTH, VRAM_HEIGHT, 1 };
-		vkCmdCopyBufferToImage(cb, g_vkVramStaging, g_vkVramImage,
+		vkCmdCopyBufferToImage(cb, g_vkVramStaging[g_vkCurrentFrame], g_vkVramImage,
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &r);
 
 		VramImageBarrier(cb,
@@ -1428,11 +1782,10 @@ void GR_BeginScene()
 	rpb.pClearValues = cv;
 	vkCmdBeginRenderPass(cb, &rpb, VK_SUBPASS_CONTENTS_INLINE);
 
-	// Default viewport + scissor cover the whole swapchain. The Y axis is
-	// flipped (negative height) so vertices coming out of GR_Ortho2D /
-	// GR_Perspective3D — which are written for the GL backend's clip
-	// space (Y-up) — still rasterise the right way up under Vulkan's
-	// Y-down clip space. Requires VK_KHR_maintenance1, in core since 1.1.
+	// Y-flip via negative-height viewport (VK_KHR_maintenance1 / VK 1.1
+	// core). The 2D ortho matrix and the 3D shader's `* vec2(1, -1)`
+	// both produce GL-style Y-up clip space; this viewport flip brings
+	// it back to VK's Y-down screen.
 	VkViewport vp = {};
 	vp.x = 0.0f;
 	vp.y = (float)g_vkSwapchainExtent.height;
@@ -1447,10 +1800,11 @@ void GR_BeginScene()
 	// Bind initial blend-mode pipeline + vertex buffer + descriptor set.
 	// GR_DrawTriangles will rebind a different pipeline if the engine
 	// switches blend modes mid-frame.
-	g_vkBoundPipelineIdx = BM_NONE;
-	vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkPipelines[BM_NONE]);
+		g_vkBoundPipelineKey = GetPipelineKey(kVkDepthEnabled, BM_NONE);
+		vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkPipelines[kVkDepthEnabled][BM_NONE]);
 	VkDeviceSize zero = 0;
-	vkCmdBindVertexBuffers(cb, 0, 1, &g_vkVertexBuffer, &zero);
+	VkBuffer vertexBuffer = g_vkVertexBuffer[g_vkCurrentFrame];
+	vkCmdBindVertexBuffers(cb, 0, 1, &vertexBuffer, &zero);
 	vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS,
 		g_vkPipelineLayout, 0, 1, &g_vkDescSet, 0, nullptr);
 
@@ -1466,8 +1820,42 @@ void GR_EndScene()
 {
 	if (!g_vkSceneRecording) return;
 
+	VkDiagLogFrame();
+
 	VkCommandBuffer cb = g_vkCmdBuffers[g_vkCurrentFrame];
 	vkCmdEndRenderPass(cb);
+
+	const VkDeviceSize captureBytes = (VkDeviceSize)g_vkSwapchainExtent.width * g_vkSwapchainExtent.height * 4;
+	VkBuffer captureBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory captureMemory = VK_NULL_HANDLE;
+	const bool captureThisFrame =
+		g_vkSwapchainCanReadback &&
+		VkCaptureFrame() >= 0 &&
+		(int)g_vkDiagFrame == VkCaptureFrame() &&
+		CreateBuffer(captureBytes,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&captureBuffer, &captureMemory);
+
+	if (captureThisFrame) {
+		SwapchainImageBarrier(cb,
+			VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+			VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
+		VkBufferImageCopy copy = {};
+		copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copy.imageSubresource.layerCount = 1;
+		copy.imageExtent = { g_vkSwapchainExtent.width, g_vkSwapchainExtent.height, 1 };
+		vkCmdCopyImageToBuffer(cb, g_vkSwapchainImages[g_vkAcquiredImageIdx],
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, captureBuffer, 1, &copy);
+
+		SwapchainImageBarrier(cb,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+			VK_ACCESS_TRANSFER_READ_BIT, 0,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+	}
+
 	vkEndCommandBuffer(cb);
 
 	VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -1481,6 +1869,23 @@ void GR_EndScene()
 	si.signalSemaphoreCount = 1;
 	si.pSignalSemaphores = &g_vkRenderFinishedSems[g_vkCurrentFrame];
 	VK_CHECK(vkQueueSubmit(g_vkGraphicsQueue, 1, &si, g_vkInFlightFences[g_vkCurrentFrame]));
+
+	if (captureThisFrame) {
+		VK_CHECK(vkWaitForFences(g_vkDevice, 1, &g_vkInFlightFences[g_vkCurrentFrame], VK_TRUE, UINT64_MAX));
+		void* mapped = nullptr;
+		VK_CHECK(vkMapMemory(g_vkDevice, captureMemory, 0, captureBytes, 0, &mapped));
+		std::vector<unsigned char> pixels((size_t)captureBytes);
+		memcpy(pixels.data(), mapped, (size_t)captureBytes);
+		vkUnmapMemory(g_vkDevice, captureMemory);
+		ConvertSwapchainPixelsToBgra(pixels.data(), g_vkSwapchainExtent.width, g_vkSwapchainExtent.height);
+		const char* capturePath = VkCapturePath();
+		if (WriteBgraBmp(capturePath, pixels.data(), g_vkSwapchainExtent.width, g_vkSwapchainExtent.height))
+			eprintinfo("[VK] captured frame %llu to %s\n", (unsigned long long)g_vkDiagFrame, capturePath);
+		else
+			eprinterr("[VK] failed to capture frame %llu to %s\n", (unsigned long long)g_vkDiagFrame, capturePath);
+		vkDestroyBuffer(g_vkDevice, captureBuffer, nullptr);
+		vkFreeMemory(g_vkDevice, captureMemory, nullptr);
+	}
 
 	VkPresentInfoKHR pi = {};
 	pi.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1523,16 +1928,14 @@ void GR_ClearVRAM(int, int, int, int, unsigned char, unsigned char, unsigned cha
 
 void GR_UpdateVertexBuffer(const GrVertex* vertices, int count)
 {
-	if (!vertices || count <= 0 || !g_vkVertexBufferMap) return;
+	void* vertexBufferMap = g_vkVertexBufferMap[g_vkCurrentFrame];
+	if (!vertices || count <= 0 || !vertexBufferMap) return;
 	if (count > MAX_VERTEX_BUFFER_SIZE) count = MAX_VERTEX_BUFFER_SIZE;
-	memcpy(g_vkVertexBufferMap, vertices, sizeof(GrVertex) * (size_t)count);
+	memcpy(vertexBufferMap, vertices, sizeof(GrVertex) * (size_t)count);
 	g_vkVertexBufferSize = (uint32_t)count;
 
-	// DEBUG: dump first 3 vertices once per ~120 frames — but only when
-	// the buffer has more than 30 vertices (skips the FMV's 6-vertex
-	// underlay quad so we get real engine geometry samples).
 	static int s_dumpTick = 0;
-	if (++s_dumpTick >= 120 && count >= 30) {
+	if (VkDrawLogEnabled() && ++s_dumpTick >= 120 && count >= 30) {
 		s_dumpTick = 0;
 		for (int i = 0; i < 3 && i < count; ++i) {
 			const GrVertex& v = vertices[i];
@@ -1570,23 +1973,30 @@ void GR_DrawTriangles(int start_vertex, int triangles)
 	s_trisSinceLog += (uint64_t)(triangles > 0 ? triangles : 0);
 
 	if (!g_vkSceneRecording || triangles <= 0) return;
+	if (g_PreviousOffscreenState) return;
+
 	VkCommandBuffer cb = g_vkCmdBuffers[g_vkCurrentFrame];
 
-	// Switch pipeline if blend mode changed since last draw.
-	if (g_vkActiveBlendMode != g_vkBoundPipelineIdx) {
-		const int idx = (g_vkActiveBlendMode >= 0 && g_vkActiveBlendMode < 5)
-			? g_vkActiveBlendMode : 0;
-		vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkPipelines[idx]);
-		g_vkBoundPipelineIdx = idx;
+	const int blendIdx = (g_vkActiveBlendMode >= 0 && g_vkActiveBlendMode < kVkBlendModeCount)
+		? g_vkActiveBlendMode : 0;
+	const int depthIdx = (g_vkActiveDepthMode == kVkDepthEnabled && g_cfg_pgxpZBuffer)
+		? kVkDepthEnabled : kVkDepthDisabled;
+	const int pipelineKey = GetPipelineKey(depthIdx, blendIdx);
+
+	if (pipelineKey != g_vkBoundPipelineKey) {
+		vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_vkPipelines[depthIdx][blendIdx]);
+		g_vkBoundPipelineKey = pipelineKey;
 	}
 
 	vkCmdPushConstants(cb, g_vkPipelineLayout,
 		VK_SHADER_STAGE_VERTEX_BIT,
 		0, sizeof(PushBlock), &g_vkPushBlock);
 
+	VkDiagAccumulateDraw(start_vertex, triangles);
+
 	vkCmdDraw(cb, (uint32_t)(triangles * 3), 1, (uint32_t)start_vertex, 0);
 
-	if (++s_logTickFrame >= 60) {
+	if (VkDrawLogEnabled() && ++s_logTickFrame >= 60) {
 		eprintinfo("[VK] draws/s=%llu tris/s=%llu vbufVerts=%u\n",
 			(unsigned long long)s_drawsSinceLog,
 			(unsigned long long)s_trisSinceLog,
@@ -1658,17 +2068,15 @@ void GR_CopyVRAM(unsigned short* src, int x, int y, int w, int h, int dst_x, int
 		src += stride;
 	}
 
-	// DEBUG: count uploads + sample one pixel so we can see if data flows.
 	static int s_uploads = 0;
 	static int s_logTick = 0;
 	s_uploads++;
-	if (++s_logTick >= 20) {
+	if (VkDrawLogEnabled() && ++s_logTick >= 20) {
 		s_logTick = 0;
-		// pick the centre of the just-copied region
 		int cx = dst_x + w/2;
 		int cy = dst_y + h/2;
 		unsigned short v = g_vkVramCPU[cy * VRAM_WIDTH + cx];
-		eprintinfo("[VK][VRAM] upload #%d → (%d,%d) %dx%d  centre[%d,%d]=0x%04x\n",
+		eprintinfo("[VK][VRAM] upload #%d -> (%d,%d) %dx%d center[%d,%d]=0x%04x\n",
 			s_uploads, dst_x, dst_y, w, h, cx, cy, (unsigned)v);
 	}
 }
@@ -1714,7 +2122,11 @@ void GR_SetBlendMode(BlendMode bm)
 }
 void GR_SetPolygonOffset(float) {}
 void GR_SetStencilMode(int v)    { g_PreviousStencilMode = v; }
-void GR_EnableDepth(int v)       { g_PreviousDepthMode = v; }
+void GR_EnableDepth(int v)
+{
+	g_PreviousDepthMode = v;
+	g_vkActiveDepthMode = (v && g_cfg_pgxpZBuffer) ? kVkDepthEnabled : kVkDepthDisabled;
+}
 // Engine state owned by PsyX_GPU.cpp — needed by GR_SetupClipMode to
 // translate the engine's PSX-space clip rect into a window-space scissor.
 extern "C" { extern DISPENV activeDispEnv; }
