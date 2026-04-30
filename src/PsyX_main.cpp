@@ -146,8 +146,35 @@ int PsyX_Sys_SetVMode(int mode)
 	return old;
 }
 
+// Drives the vsync_callback + vblank counter from the calling thread.
+// Originally this was done from a separate `intrThreadMain` thread, but
+// firing PSX-VBlank callbacks asynchronously while the main thread was in
+// the middle of building the OT / running game logic raced badly on
+// arm64 (LP64 + weaker memory ordering than x86), producing intermittently
+// missing geometry. Doing it inline here keeps everything single-threaded.
+static void PsyX_PollVBlankFromMainThread(void)
+{
+	const double timestep = g_vmode == MODE_NTSC ? FIXED_TIME_STEP_NTSC : FIXED_TIME_STEP_PAL;
+
+	// Catch up: fire one callback per missed timestep
+	while (1)
+	{
+		const double vblDelta = Util_GetHPCTime(&g_vblTimer, 0);
+		if (vblDelta < timestep)
+			break;
+
+		if (vsync_callback)
+			vsync_callback();
+
+		g_psxSysCounters[PsxCounter_VBLANK]++;
+		Util_GetHPCTime(&g_vblTimer, 1);
+	}
+}
+
 int PsyX_Sys_GetVBlankCount()
 {
+	PsyX_PollVBlankFromMainThread();
+
 	if (g_skipSwapInterval)
 	{
 		// extra speedup.
@@ -155,62 +182,30 @@ int PsyX_Sys_GetVBlankCount()
 		g_psxSysCounters[PsxCounter_VBLANK] += 1;
 		g_frameSkip++;
 	}
-	
+
 	return g_psxSysCounters[PsxCounter_VBLANK];
 }
 
+// Kept as a no-op stub so any external callers / port code still link.
+// The real logic now lives in PsyX_PollVBlankFromMainThread() and runs
+// on the main thread via PsyX_Sys_GetVBlankCount().
 int intrThreadMain(void* data)
 {
-	Util_InitHPCTimer(&g_vblTimer);
-
-	while (!g_stopIntrThread)
-	{
-		// step counters
-		{
-			const double timestep = g_vmode == MODE_NTSC ? FIXED_TIME_STEP_NTSC : FIXED_TIME_STEP_PAL;
-			const double vblDelta = Util_GetHPCTime(&g_vblTimer, 0);
-
-			if (vblDelta > timestep)
-			{
-				SDL_LockMutex(g_intrMutex);
-				
-				if (vsync_callback)
-					vsync_callback();
-				
-				SDL_UnlockMutex(g_intrMutex);
-				
-				// do vblank events
-				g_psxSysCounters[PsxCounter_VBLANK]++;
-			
-				Util_GetHPCTime(&g_vblTimer, 1);
-			}
-			
-		}
-	}
-
+	(void)data;
 	return 0;
 }
 
 static int PsyX_Sys_InitialiseCore()
 {
-#ifdef __EMSCRIPTEN__
+	// Initialise the timer on whichever thread will be polling vblank
+	// (always the main thread now).
 	Util_InitHPCTimer(&g_vblTimer);
-#else
 
-	g_intrThread = SDL_CreateThread(intrThreadMain, "psyX_intr", NULL);
-
-	if (NULL == g_intrThread)
-	{
-		eprinterr("SDL_CreateThread failed: %s\n", SDL_GetError());
-		return 0;
-	}
-	
-	g_intrMutex = SDL_CreateMutex();
-	if (NULL == g_intrMutex)
-	{
-		eprinterr("SDL_CreateMutex failed: %s\n", SDL_GetError());
-		return 0;
-	}
+#ifndef __EMSCRIPTEN__
+	// We no longer spawn `psyX_intr`. The mutex is left null because no
+	// other thread takes it; any legacy locking sites are guarded.
+	g_intrThread = NULL;
+	g_intrMutex = NULL;
 #endif
 	return 1;
 }

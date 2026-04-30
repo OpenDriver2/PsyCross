@@ -5,8 +5,13 @@
 
 /*
  * Platform specific emulator setup
+ *
+ * RENDERER_VK can be defined externally (via build system) to opt into
+ * the Vulkan/MoltenVK backend instead of the default OpenGL one.
  */
-#if (defined(_WIN32) || defined(__APPLE__) || defined(__linux__)) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__RPI__)
+#if defined(RENDERER_VK)
+    /* Vulkan backend selected — keep RENDERER_OGL/OGLES undefined */
+#elif (defined(_WIN32) || defined(__APPLE__) || defined(__linux__)) && !defined(__ANDROID__) && !defined(__EMSCRIPTEN__) && !defined(__RPI__)
 #   define RENDERER_OGL
 #   define USE_GLAD
 #elif defined(__RPI__)
@@ -26,6 +31,14 @@
 #   define USE_OPENGL 0
 #endif
 
+#if defined(RENDERER_VK)
+#   define USE_VULKAN 1
+#else
+#   ifndef USE_VULKAN
+#   define USE_VULKAN 0
+#   endif
+#endif
+
 #if OGLES_VERSION == 2
 #   define ES2_SHADERS
 #elif OGLES_VERSION == 3
@@ -35,22 +48,15 @@
  /*
   * OpenGL
   */
-
 #if defined (RENDERER_OGL)
 
 #   define GL_GLEXT_PROTOTYPES
-
-#if defined(USE_GLAD)
 #   include "common/glad.h"
-#endif
 
 #elif defined (RENDERER_OGLES)
 
 #   define GL_GLEXT_PROTOTYPES
 
-#if defined(USE_GLAD)
-#   include "common/glad.h"
-#else
 #   ifdef __EMSCRIPTEN__
 #      include <GL/gl.h>
 #   else
@@ -61,7 +67,6 @@
 #          include <GLES3/gl3.h>
 #      endif
 #   endif
-#endif
 
 #   include <EGL/egl.h>
 
@@ -72,6 +77,9 @@
 #   define TEXTURE_FORMAT GL_UNSIGNED_SHORT_1_5_5_5_REV
 #elif defined(RENDERER_OGLES)
 #   define TEXTURE_FORMAT GL_UNSIGNED_SHORT_5_5_5_1
+#elif defined(RENDERER_VK)
+/* Vulkan equivalent: VK_FORMAT_A1R5G5B5_UNORM_PACK16. Symbolic constant
+ * resolved in the Vulkan backend; nothing to define here for the public header. */
 #endif
 
 #include "psx/types.h"
@@ -105,6 +113,8 @@
 #elif defined(RENDERER_OGLES)
 #	define VRAM_FORMAT            GL_LUMINANCE_ALPHA
 #	define VRAM_INTERNAL_FORMAT   GL_LUMINANCE_ALPHA
+#elif defined(RENDERER_VK)
+/* Vulkan: VRAM is emulated as a R32G32_SFLOAT image (analogous to GL_RG32F) */
 #endif
 
 #define VRAM_WIDTH		(1024)
@@ -163,8 +173,13 @@ typedef enum
 #if defined(RENDERER_OGLES) || defined(RENDERER_OGL)
 typedef uint TextureID;
 typedef uint ShaderID;
+#elif defined(RENDERER_VK)
+/* Vulkan: opaque uint32_t handles into internal Vulkan resource tables.
+ * Backend manages VkImage/VkImageView/VkSampler/VkPipeline creation. */
+typedef uint TextureID;
+typedef uint ShaderID;
 #else
-#error
+#error "No renderer backend selected"
 #endif
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)

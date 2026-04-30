@@ -23,7 +23,7 @@ int StopCallback(void)
 
 int ResetCallback(void)
 {
-	int old = (int)vsync_callback;
+	int old = (int)(intptr_t)vsync_callback;
 	vsync_callback = NULL;
 	return old;
 }
@@ -50,7 +50,7 @@ int VSync(int mode)
 
 int VSyncCallback(void(*f)(void))
 {
-	int old = (int)vsync_callback;
+	int old = (int)(intptr_t)vsync_callback;
 	vsync_callback = f;
 	return old;
 }

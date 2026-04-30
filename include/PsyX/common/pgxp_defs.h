@@ -41,6 +41,9 @@ extern "C" {
 extern PGXPVector3D g_FP_SXYZ0; // direct access PGXP without table lookup
 extern PGXPVector3D g_FP_SXYZ1;
 extern PGXPVector3D g_FP_SXYZ2;
+extern ushort g_FP_SXYZ0Index;
+extern ushort g_FP_SXYZ1Index;
+extern ushort g_FP_SXYZ2Index;
 
 /* clears PGXP vertex buffer */
 void	PGXP_ClearCache();
@@ -53,9 +56,12 @@ void	PGXP_SetZOffsetScale(float offset, float scale);
 
 /* searches for vertex with given lookup value */
 int		PGXP_GetCacheData(PGXPVData* out, uint lookup, ushort indexhint /* = 0xFFFF */);
+int		PGXP_GetCacheDataExact(PGXPVData* out, uint lookup, ushort indexhint);
 
 /* used by primitive setup */
 ushort	PGXP_GetIndex(int checkTransform);
+void	PGXP_RecordAddressIndex(const void* address, ushort index);
+ushort	PGXP_GetAddressIndex(const void* address);
 
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 }

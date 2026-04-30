@@ -6,6 +6,9 @@
 #include "psx/gtereg.h"
 
 #include <math.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 
@@ -283,6 +286,9 @@ int Lm_H(long long value, int sf) {
 PGXPVector3D g_FP_SXYZ0; // direct access PGXP without table lookup
 PGXPVector3D g_FP_SXYZ1;
 PGXPVector3D g_FP_SXYZ2;
+ushort g_FP_SXYZ0Index = 0xffff;
+ushort g_FP_SXYZ1Index = 0xffff;
+ushort g_FP_SXYZ2Index = 0xffff;
 
 PGXPVData g_pgxpCache[1 << sizeof(ushort)*8];
 ushort g_pgxpVertexIndex = 0;
@@ -293,9 +299,147 @@ int g_pgxpTransformed = 0;
 float g_pgxpZOffset = 0.0f;
 float g_pgxpZScale = 1.0f;
 
+struct PGXPDiagStats {
+	unsigned int emitted;
+	unsigned int getCalls;
+	unsigned int directHits;
+	unsigned int directMismatches;
+	unsigned int fallbackHits;
+	unsigned int misses;
+	unsigned int maxFallbackCycles;
+	int fallbackDeltaMin;
+	int fallbackDeltaMax;
+	long long fallbackDeltaSum;
+	unsigned int fallbackDeltaSamples;
+	unsigned int fallbackDeltaBuckets[17];
+	unsigned int fallbackDeltaOther;
+	unsigned int addressRecords;
+	unsigned int addressHits;
+	unsigned int addressMisses;
+	unsigned int nclipPositive;
+	unsigned int nclipNegative;
+	unsigned int nclipZero;
+	unsigned int rtpsCount;
+	unsigned int rtpsMac3Behind;
+	unsigned int rtpsPzBehind;
+	unsigned int rtpsPzNear;
+	float rtpsPzMin;
+	float rtpsPzMax;
+};
+
+struct PGXPAddressEntry {
+	uintptr_t address;
+	ushort index;
+	unsigned int generation;
+};
+
+#define PGXP_ADDRESS_TABLE_BITS 18
+#define PGXP_ADDRESS_TABLE_SIZE (1 << PGXP_ADDRESS_TABLE_BITS)
+#define PGXP_ADDRESS_TABLE_MASK (PGXP_ADDRESS_TABLE_SIZE - 1)
+
+PGXPAddressEntry g_pgxpAddressTable[PGXP_ADDRESS_TABLE_SIZE] = {};
+unsigned int g_pgxpAddressGeneration = 1;
+
+PGXPDiagStats g_pgxpDiagStats = {};
+unsigned int g_pgxpDiagFrame = 0;
+
+int PGXP_DiagEnabled()
+{
+	static int cached = -1;
+	if (cached < 0) {
+		const char* value = getenv("REDRIVER2_VK_DIAG");
+		cached = (value && atoi(value) != 0) ? 1 : 0;
+	}
+	return cached;
+}
+
+int PGXP_DiagInterval()
+{
+	static int cached = -1;
+	if (cached < 0) {
+		const char* value = getenv("REDRIVER2_VK_DIAG_INTERVAL");
+		cached = value ? atoi(value) : 60;
+		if (cached < 1)
+			cached = 1;
+	}
+	return cached;
+}
+
+void PGXP_DiagLogAndReset()
+{
+	if (PGXP_DiagEnabled() && g_pgxpDiagFrame % PGXP_DiagInterval() == 0) {
+		const int deltaMin = g_pgxpDiagStats.fallbackDeltaSamples ? g_pgxpDiagStats.fallbackDeltaMin : 0;
+		const int deltaMax = g_pgxpDiagStats.fallbackDeltaSamples ? g_pgxpDiagStats.fallbackDeltaMax : 0;
+		const double deltaAvg = g_pgxpDiagStats.fallbackDeltaSamples
+			? (double)g_pgxpDiagStats.fallbackDeltaSum / (double)g_pgxpDiagStats.fallbackDeltaSamples
+			: 0.0;
+
+		const float pzMin = g_pgxpDiagStats.rtpsCount ? g_pgxpDiagStats.rtpsPzMin : 0.0f;
+		const float pzMax = g_pgxpDiagStats.rtpsCount ? g_pgxpDiagStats.rtpsPzMax : 0.0f;
+
+		PsyX_Log_Info("[Psy-X] [PGXPDIAG][frame=%u] emitted=%u get=%u direct=%u mismatch=%u fallback=%u miss=%u maxFallbackCycles=%u fallbackDelta avg/min/max=%.2f/%d/%d buckets[-8..8]=%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u other=%u addr record/hit/miss=%u/%u/%u nclip +/0/-=%u/%u/%u rtps=%u mac3Behind=%u pzBehind=%u pzNear=%u pz=[%.3f %.3f]\n",
+			g_pgxpDiagFrame,
+			g_pgxpDiagStats.emitted,
+			g_pgxpDiagStats.getCalls,
+			g_pgxpDiagStats.directHits,
+			g_pgxpDiagStats.directMismatches,
+			g_pgxpDiagStats.fallbackHits,
+			g_pgxpDiagStats.misses,
+			g_pgxpDiagStats.maxFallbackCycles,
+			deltaAvg,
+			deltaMin,
+			deltaMax,
+			g_pgxpDiagStats.fallbackDeltaBuckets[0],
+			g_pgxpDiagStats.fallbackDeltaBuckets[1],
+			g_pgxpDiagStats.fallbackDeltaBuckets[2],
+			g_pgxpDiagStats.fallbackDeltaBuckets[3],
+			g_pgxpDiagStats.fallbackDeltaBuckets[4],
+			g_pgxpDiagStats.fallbackDeltaBuckets[5],
+			g_pgxpDiagStats.fallbackDeltaBuckets[6],
+			g_pgxpDiagStats.fallbackDeltaBuckets[7],
+			g_pgxpDiagStats.fallbackDeltaBuckets[8],
+			g_pgxpDiagStats.fallbackDeltaBuckets[9],
+			g_pgxpDiagStats.fallbackDeltaBuckets[10],
+			g_pgxpDiagStats.fallbackDeltaBuckets[11],
+			g_pgxpDiagStats.fallbackDeltaBuckets[12],
+			g_pgxpDiagStats.fallbackDeltaBuckets[13],
+			g_pgxpDiagStats.fallbackDeltaBuckets[14],
+			g_pgxpDiagStats.fallbackDeltaBuckets[15],
+			g_pgxpDiagStats.fallbackDeltaBuckets[16],
+			g_pgxpDiagStats.fallbackDeltaOther,
+			g_pgxpDiagStats.addressRecords,
+			g_pgxpDiagStats.addressHits,
+			g_pgxpDiagStats.addressMisses,
+			g_pgxpDiagStats.nclipPositive,
+			g_pgxpDiagStats.nclipZero,
+			g_pgxpDiagStats.nclipNegative,
+			g_pgxpDiagStats.rtpsCount,
+			g_pgxpDiagStats.rtpsMac3Behind,
+			g_pgxpDiagStats.rtpsPzBehind,
+			g_pgxpDiagStats.rtpsPzNear,
+			(double)pzMin,
+			(double)pzMax);
+	}
+
+	memset(&g_pgxpDiagStats, 0, sizeof(g_pgxpDiagStats));
+	g_pgxpDiagFrame++;
+}
+
 void PGXP_ClearCache()
 {
+	PGXP_DiagLogAndReset();
+
+	memset(g_pgxpCache, 0xFF, sizeof(g_pgxpCache));
 	g_pgxpVertexIndex = 0;
+	g_FP_SXYZ0Index = 0xffff;
+	g_FP_SXYZ1Index = 0xffff;
+	g_FP_SXYZ2Index = 0xffff;
+
+	g_pgxpAddressGeneration++;
+	if (g_pgxpAddressGeneration == 0) {
+		memset(g_pgxpAddressTable, 0, sizeof(g_pgxpAddressTable));
+		g_pgxpAddressGeneration = 1;
+	}
 }
 
 ushort PGXP_GetIndex(int checkTransform)
@@ -317,9 +461,85 @@ ushort PGXP_EmitCacheData(PGXPVData* newData)
 	if (nextIndex == 0xffff)
 		return 0xffff;
 
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.emitted++;
+
 	g_pgxpCache[nextIndex] = *newData;
 	g_pgxpTransformed = 1;
 	return nextIndex;
+}
+
+static unsigned int PGXP_AddressHash(uintptr_t address)
+{
+	uintptr_t value = address >> 2;
+	value ^= value >> 11;
+	value ^= value >> 23;
+	return (unsigned int)value & PGXP_ADDRESS_TABLE_MASK;
+}
+
+void PGXP_RecordAddressIndex(const void* address, ushort index)
+{
+	if (!address || index == 0xffff)
+		return;
+
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.addressRecords++;
+
+	const uintptr_t key = (uintptr_t)address;
+	unsigned int slot = PGXP_AddressHash(key);
+
+	for (unsigned int probe = 0; probe < PGXP_ADDRESS_TABLE_SIZE; probe++) {
+		PGXPAddressEntry* entry = &g_pgxpAddressTable[slot];
+		if (entry->generation != g_pgxpAddressGeneration || entry->address == key) {
+			entry->address = key;
+			entry->index = index;
+			entry->generation = g_pgxpAddressGeneration;
+			return;
+		}
+
+		slot = (slot + 1) & PGXP_ADDRESS_TABLE_MASK;
+	}
+}
+
+ushort PGXP_GetAddressIndex(const void* address)
+{
+	if (!address) {
+		if (PGXP_DiagEnabled())
+			g_pgxpDiagStats.addressMisses++;
+		return 0xffff;
+	}
+
+	const uintptr_t key = (uintptr_t)address;
+	unsigned int slot = PGXP_AddressHash(key);
+
+	for (unsigned int probe = 0; probe < PGXP_ADDRESS_TABLE_SIZE; probe++) {
+		PGXPAddressEntry* entry = &g_pgxpAddressTable[slot];
+		if (entry->generation != g_pgxpAddressGeneration)
+			break;
+
+		if (entry->address == key) {
+			if (PGXP_DiagEnabled())
+				g_pgxpDiagStats.addressHits++;
+			return entry->index;
+		}
+
+		slot = (slot + 1) & PGXP_ADDRESS_TABLE_MASK;
+	}
+
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.addressMisses++;
+
+	return 0xffff;
+}
+
+static void PGXP_ClearCacheDataOut(PGXPVData* out)
+{
+	out->px = 0.0f;
+	out->py = 0.0f;
+	out->pz = 1.0f;
+	out->scr_h = 0.0f;
+	out->ofx = 0.0f;
+	out->ofy = 0.0f;
 }
 
 void PGXP_SetZOffsetScale(float offset, float scale)
@@ -328,19 +548,56 @@ void PGXP_SetZOffsetScale(float offset, float scale)
 	g_pgxpZScale = scale;
 }
 
+int PGXP_GetCacheDataExact(PGXPVData* out, uint lookup, ushort indexhint)
+{
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.getCalls++;
+
+	if (indexhint != 0xFFFF && g_pgxpCache[indexhint].lookup == lookup)
+	{
+		if (PGXP_DiagEnabled())
+			g_pgxpDiagStats.directHits++;
+
+		*out = g_pgxpCache[indexhint];
+		return 1;
+	}
+
+	if (PGXP_DiagEnabled()) {
+		if (indexhint != 0xFFFF)
+			g_pgxpDiagStats.directMismatches++;
+		g_pgxpDiagStats.misses++;
+	}
+
+	PGXP_ClearCacheDataOut(out);
+	return 0;
+}
+
 // sets copy of cached vertex data to out
 int PGXP_GetCacheData(PGXPVData* out, uint lookup, ushort indexhint)
 {
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.getCalls++;
+
 	if (indexhint == 0xFFFF)
 	{
-		out->px = 0.0f;
-		out->py = 0.0f;
-		out->pz = 1.0f;
-		out->scr_h = 0.0f;
-		out->ofx = 0.0f;
-		out->ofx = 0.0f;
+		if (PGXP_DiagEnabled())
+			g_pgxpDiagStats.misses++;
+
+		PGXP_ClearCacheDataOut(out);
 		return 0;
 	}
+
+	if (g_pgxpCache[indexhint].lookup == lookup)
+	{
+		if (PGXP_DiagEnabled())
+			g_pgxpDiagStats.directHits++;
+
+		*out = g_pgxpCache[indexhint];
+		return 1;
+	}
+
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.directMismatches++;
 
 	// index hint allows us to start from specific index
 	ushort index = max(0, int(indexhint) - 8);
@@ -355,6 +612,34 @@ int PGXP_GetCacheData(PGXPVData* out, uint lookup, ushort indexhint)
 			if (i > 256)
 				PsyX_Log_Warning("PGXP_GetCacheData lookup IS inefficient: hint: %d, start: %d, found: %d, cycles: %d\n", indexhint, ushort(indexhint - 8u), index, i);
 
+			if (PGXP_DiagEnabled()) {
+				g_pgxpDiagStats.fallbackHits++;
+				if ((unsigned int)i > g_pgxpDiagStats.maxFallbackCycles)
+					g_pgxpDiagStats.maxFallbackCycles = (unsigned int)i;
+
+				int delta = (int)index - (int)indexhint;
+				if (delta > 32767)
+					delta -= 65536;
+				else if (delta < -32768)
+					delta += 65536;
+
+				if (g_pgxpDiagStats.fallbackDeltaSamples == 0) {
+					g_pgxpDiagStats.fallbackDeltaMin = delta;
+					g_pgxpDiagStats.fallbackDeltaMax = delta;
+				} else {
+					g_pgxpDiagStats.fallbackDeltaMin = min(g_pgxpDiagStats.fallbackDeltaMin, delta);
+					g_pgxpDiagStats.fallbackDeltaMax = max(g_pgxpDiagStats.fallbackDeltaMax, delta);
+				}
+
+				g_pgxpDiagStats.fallbackDeltaSum += delta;
+				g_pgxpDiagStats.fallbackDeltaSamples++;
+
+				if (delta >= -8 && delta <= 8)
+					g_pgxpDiagStats.fallbackDeltaBuckets[delta + 8]++;
+				else
+					g_pgxpDiagStats.fallbackDeltaOther++;
+			}
+
 			*out = g_pgxpCache[index];
 			return 1;
 		}
@@ -363,12 +648,10 @@ int PGXP_GetCacheData(PGXPVData* out, uint lookup, ushort indexhint)
 
 	//PsyX_Log_Warning("PGXP_GetCacheData lookup IS NOT FOUND: hint: %d\n", indexhint);
 
-	out->px = 0.0f;
-	out->py = 0.0f;
-	out->pz = 1.0f;
-	out->scr_h = 0.0f;
-	out->ofx = 0.0f;
-	out->ofx = 0.0f;
+	if (PGXP_DiagEnabled())
+		g_pgxpDiagStats.misses++;
+
+	PGXP_ClearCacheDataOut(out);
 
 	return 0;
 }
@@ -405,6 +688,8 @@ int GTE_RotTransPers(int idx, int lm)
 	
 	g_FP_SXYZ0 = g_FP_SXYZ1;
 	g_FP_SXYZ1 = g_FP_SXYZ2;
+	g_FP_SXYZ0Index = g_FP_SXYZ1Index;
+	g_FP_SXYZ1Index = g_FP_SXYZ2Index;
 
 	// do not perform perspective multiplication so it stays in object space
 	// perspective is performed exclusively in shader
@@ -412,6 +697,26 @@ int GTE_RotTransPers(int idx, int lm)
 	temp.px = fMAC1 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
 	temp.py = fMAC2 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
 	temp.pz = fMAC3 * one_by_v * g_pgxpZScale + g_pgxpZOffset;
+
+	if (PGXP_DiagEnabled()) {
+		if (g_pgxpDiagStats.rtpsCount == 0) {
+			g_pgxpDiagStats.rtpsPzMin = temp.pz;
+			g_pgxpDiagStats.rtpsPzMax = temp.pz;
+		} else {
+			g_pgxpDiagStats.rtpsPzMin = min(g_pgxpDiagStats.rtpsPzMin, temp.pz);
+			g_pgxpDiagStats.rtpsPzMax = max(g_pgxpDiagStats.rtpsPzMax, temp.pz);
+		}
+
+		g_pgxpDiagStats.rtpsCount++;
+
+		if (fMAC3 <= 0.0)
+			g_pgxpDiagStats.rtpsMac3Behind++;
+
+		if (temp.pz <= 0.0f)
+			g_pgxpDiagStats.rtpsPzBehind++;
+		else if (temp.pz <= 0.25f)
+			g_pgxpDiagStats.rtpsPzNear++;
+	}
 
 	// calculate projected values for cache
 	temp.x = (double(C2_OFX) + double(float(C2_IR1) * float(h_over_sz3))) / float(1 << 16);
@@ -432,7 +737,7 @@ int GTE_RotTransPers(int idx, int lm)
 	vdata.ofy = float(C2_OFY) / float(1 << 16);
 	vdata.scr_h = float(C2_H);
 
-	PGXP_EmitCacheData(&vdata);
+	g_FP_SXYZ2Index = PGXP_EmitCacheData(&vdata);
 #endif
 
 	return h_over_sz3;
@@ -470,35 +775,7 @@ int GTE_operator(int op)
 		GTELOG("%08x NCLIP", op);
 #endif
 #if USE_PGXP
-
-		if(g_cfg_pgxpTextureCorrection)
-		{
-			struct fvec3 {
-				float x, y, z;
-			};
-			static auto subtractVec = [](const fvec3& u, const fvec3& v) -> fvec3 {
-				return fvec3{ u.x - v.x, u.y - v.y, u.z - v.z };
-			};
-			static auto crossProduct = [](const fvec3& u, const fvec3& v) -> fvec3 {
-				return fvec3{ u.y * v.z - v.y * u.z, u.z * v.x - u.x * v.z, u.x * v.y - u.y * v.x };
-			};
-			static auto dotProduct = [](const fvec3& u, const fvec3& v) -> float {
-				return u.x * v.x + u.y * v.y + u.z * v.z;
-			};
-			static auto normalize = [](const fvec3& v) -> fvec3 {
-				const float invLen = 1.0f / sqrtf(dotProduct(v, v));
-				return fvec3{ v.x * invLen, v.y * invLen, v.z * invLen };
-			};
-
-			// treat our PGXP triangle as plane
-			const fvec3 v0 = *(fvec3*)&g_FP_SXYZ0;
-			const fvec3 v1 = *(fvec3*)&g_FP_SXYZ1;
-			const fvec3 v2 = *(fvec3*)&g_FP_SXYZ2;
-			const fvec3 normal = normalize(crossProduct(subtractVec(v2, v1), subtractVec(v0, v1)));
-
-			C2_MAC0 = dotProduct(v0, normal) < 0 ? -1 : 1;
-		}
-		else
+		// PSX NCLIP is the signed 2D screen-space area; keep PGXP culling on the same value.
 		{
 			float fSX0 = g_FP_SXYZ0.x;
 			float fSY0 = g_FP_SXYZ0.y;
@@ -517,6 +794,15 @@ int GTE_operator(int op)
 				nclip += (nclip < 0.0f) ? -1.0f : 1.0f;
 
 			C2_MAC0 = nclip;
+		}
+
+		if (PGXP_DiagEnabled()) {
+			if (C2_MAC0 > 0)
+				g_pgxpDiagStats.nclipPositive++;
+			else if (C2_MAC0 < 0)
+				g_pgxpDiagStats.nclipNegative++;
+			else
+				g_pgxpDiagStats.nclipZero++;
 		}
 #else
 		C2_MAC0 = int(F((long long)(C2_SX0 * C2_SY1) + (C2_SX1 * C2_SY2) + (C2_SX2 * C2_SY0) - (C2_SX0 * C2_SY2) - (C2_SX1 * C2_SY0) - (C2_SX2 * C2_SY1)));

@@ -26,6 +26,13 @@ extern int CFC2_S(int reg);
 /* performs cop2 opcode */
 extern int doCOP2(int op);
 
+#if USE_PGXP
+extern unsigned short g_FP_SXYZ0Index;
+extern unsigned short g_FP_SXYZ1Index;
+extern unsigned short g_FP_SXYZ2Index;
+extern void PGXP_RecordAddressIndex(const void* address, unsigned short index);
+#endif
+
 #if defined(_LANGUAGE_C_PLUS_PLUS)||defined(__cplusplus)||defined(c_plusplus)
 }
 #endif
@@ -104,10 +111,10 @@ extern int doCOP2(int op);
 		MTC2(*(uint*)((char*)(r2)), 22); \
 		MTC2(*(uint*)((char*)(r2)), 6); }
 
-// mtc2 12, lwc2 1
+// mtc2 0, lwc2 1
 #define gte_ldlv0( r0 ) \
-	{	MTC2((*(ushort*)((char*)(r0)+4) << 16) | *(ushort*)((char*)(r0)), 12);\
-		MTC2(*(ushort*)((char*)(r0)+8), 1); }
+	{	MTC2((*(ushort*)((char*)(r0)+4) << 16) | *(ushort*)((char*)(r0)));\
+		MTC2(*(ushort*)((char*)(r0)+8) << 16); }
 
 // mtc2 8
 #define gte_lddp( r0 )	\
@@ -547,24 +554,30 @@ extern int doCOP2(int op);
 
 // swc2 14
 #define gte_stsxy( r0 ) \
-	{*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ2.x;}
+	{	*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ2.x; \
+		PGXP_RecordAddressIndex((const void*)(r0), g_FP_SXYZ2Index);}
 
 // mfc2 12-14
 #define gte_stsxy3( r0, r1, r2 )	\
 	{	*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ0.x;\
 		*(uint*)((char*)(r1)) = *(uint*)&g_FP_SXYZ1.x;\
-		*(uint*)((char*)(r2)) = *(uint*)&g_FP_SXYZ2.x;}
+		*(uint*)((char*)(r2)) = *(uint*)&g_FP_SXYZ2.x;\
+		PGXP_RecordAddressIndex((const void*)(r0), g_FP_SXYZ0Index);\
+		PGXP_RecordAddressIndex((const void*)(r1), g_FP_SXYZ1Index);\
+		PGXP_RecordAddressIndex((const void*)(r2), g_FP_SXYZ2Index);}
 
 // swc2 14
 #define gte_stsxy2( r0 ) gte_stsxy(r0)
 
 // swc2 13
 #define gte_stsxy1( r0 ) \
-	{	*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ1.x;}
+	{	*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ1.x;\
+		PGXP_RecordAddressIndex((const void*)(r0), g_FP_SXYZ1Index);}
 
 // swc2 12
 #define gte_stsxy0( r0 ) \
-	{	*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ0.x;}
+	{	*(uint*)((char*)(r0)) = *(uint*)&g_FP_SXYZ0.x;\
+		PGXP_RecordAddressIndex((const void*)(r0), g_FP_SXYZ0Index);}
 
 #else
 

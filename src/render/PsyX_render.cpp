@@ -30,16 +30,26 @@ extern "C" {
 
 #if defined(RENDERER_OGL)
 
+// On macOS Apple Silicon, OpenGL is implemented on top of Metal and the
+// async framebuffer-blit + PBO path produces flickering geometry / dropped
+// primitives. Disabling these forces a synchronous, simpler path that
+// matches what the renderer assumes.
+#if defined(__APPLE__)
+#define USE_PBO					0
+#define USE_OFFSCREEN_BLIT		0
+#define USE_FRAMEBUFFER_BLIT	0
+#else
 #define USE_PBO					1
 #define USE_OFFSCREEN_BLIT		1
 #define USE_FRAMEBUFFER_BLIT	1
+#endif
 
 #else
 
 // OpenGL ES/Web GL has slowdowns and doesn't allow GL_LUMINANCE_ALPHA format as framebuffer, so it's disabled
-#define USE_PBO					(OGLES_VERSION == 3)
-#define USE_OFFSCREEN_BLIT		(OGLES_VERSION == 3)
-#define USE_FRAMEBUFFER_BLIT	(OGLES_VERSION == 3)
+#define USE_PBO					0
+#define USE_OFFSCREEN_BLIT		0
+#define USE_FRAMEBUFFER_BLIT	0
 
 #endif
 
@@ -123,14 +133,6 @@ int PBO_Init(GrPBO* pbo, GLenum format, int w, int h, int num)
 	pbo->width = w;
 	pbo->height = h;
 	pbo->num_pbos = num;
-
-#ifndef GL_BGR
-#define GL_BGR 0x80E0
-#endif
-
-#ifndef GL_BGRA
-#define GL_BGRA 0x80E1
-#endif
 
 #if USE_PBO
 	if (GL_RED == pbo->fmt || GL_GREEN == pbo->fmt || GL_BLUE == pbo->fmt) {
@@ -279,9 +281,6 @@ int GR_InitialiseGLContext(char* windowName, int fullscreen)
 	if (fullscreen)
 		windowFlags |= SDL_WINDOW_FULLSCREEN;
 #endif
-
-	if(g_windowWidth <= 0 || g_windowHeight <= 0)
-		windowFlags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 
 	g_window = SDL_CreateWindow(windowName, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, g_windowWidth, g_windowHeight, windowFlags);
 
@@ -905,12 +904,10 @@ TextureID GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/
 	glBindTexture(GL_TEXTURE_2D, newTexture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, g_cfg_bilinearFiltering ? GL_LINEAR : GL_NEAREST);
-	
-	// another WebGL stuff. Texture will be black without clamp to edge
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	return newTexture;
@@ -1242,7 +1239,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 		break;
 	case TF_32_BIT_RGBA:
 		GR_SetShader(g_gte_shader_32_rgba.shader);
-		u_bilinearFilterLoc = -1;
+		u_bilinearFilterLoc = g_gte_shader_32_rgba.bilinearFilterLoc;
 		u_projectionLoc = g_gte_shader_32_rgba.projectionLoc;
 		u_projection3DLoc = g_gte_shader_32_rgba.projection3DLoc;
 		u_texelSizeLoc = g_gte_shader_32_rgba.texelSizeLoc;
@@ -1259,9 +1256,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 
 #if USE_OPENGL
 	glBindTexture(GL_TEXTURE_2D, texture);
-	if(u_bilinearFilterLoc != -1)
-		glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
-
+	glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
 #endif
 
 	g_lastBoundTexture = texture;
@@ -1269,12 +1264,7 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 
 void GR_SetOverrideTextureSize(int width, int height)
 {
-	if(u_texelSizeLoc == -1)
-		return;
-
-	// WebGL is fucking around with glUniform2f, so use vector version
-	float vec[] = { 1.0f / (float)width, 1.0f / (float)height };
-	glUniform2fv(u_texelSizeLoc, 1, vec);
+	glUniform2f(u_texelSizeLoc, 1.0f / (float)width, 1.0f / (float)height);
 }
 
 void GR_DestroyTexture(TextureID texture)
@@ -1847,8 +1837,8 @@ void GR_DrawTriangles(int start_vertex, int triangles)
 
 void GR_PushDebugLabel(const char* label)
 {
-#if USE_OPENGL && !defined(__EMSCRIPTEN__) && defined(GL_DEBUG_SOURCE_APPLICATION)
-	if (!glPushDebugGroup)
+#if USE_OPENGL
+	if (!GLAD_GL_KHR_debug)
 		return;
 	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0x8000, strlen(label), label);
 #endif
@@ -1856,8 +1846,8 @@ void GR_PushDebugLabel(const char* label)
 
 void GR_PopDebugLabel()
 {
-#if USE_OPENGL && !defined(__EMSCRIPTEN__) && defined(GL_DEBUG_SOURCE_APPLICATION)
-	if (!glPopDebugGroup)
+#if USE_OPENGL
+	if (!GLAD_GL_KHR_debug)
 		return;
 	glPopDebugGroup();
 #endif
