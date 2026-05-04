@@ -107,6 +107,9 @@
 #	define VRAM_INTERNAL_FORMAT   GL_LUMINANCE_ALPHA
 #endif
 
+#define LUT_WIDTH 		(256)
+#define LUT_HEIGHT		(256)
+
 #define VRAM_WIDTH		(1024)
 #define VRAM_HEIGHT		(512)
 
@@ -186,7 +189,7 @@ extern void			GR_UpdateVRAM();
 extern void			GR_ReadFramebufferDataToVRAM();
 
 extern TextureID	GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/);
-extern ShaderID		GR_Shader_Compile(const char* source);
+extern ShaderID		GR_Shader_Compile(const char* source, bool isPsxShader);
 
 extern void			GR_SetShader(const ShaderID shader);
 extern void			GR_Perspective3D(const float fov, const float width, const float height, const float zNear, const float zFar);

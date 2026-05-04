@@ -61,6 +61,7 @@ ShaderID g_PreviousShader = -1;
 
 TextureID g_vramTexturesDouble[2];
 TextureID g_vramTexture;
+TextureID g_rgLutTexture;
 int g_vramTextureIdx = 0;
 
 TextureID g_fbTexture = -1;
@@ -377,6 +378,9 @@ int GR_InitialiseRender(char* windowName, int width, int height, int fullscreen)
 	// Due to debugging in fullscreen
 	SDL_SetHint(SDL_HINT_ALLOW_TOPMOST, "0");
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#ifdef SDL_HINT_WINDOWS_DPI_AWARENESS
+	SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitor");
+#endif
 
 #if USE_OPENGL
 	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 1);
@@ -416,6 +420,7 @@ void GR_Shutdown()
 	GR_DestroyTexture(g_vramTexturesDouble[1]);
 
 	GR_DestroyTexture(g_whiteTexture);
+	GR_DestroyTexture(g_rgLutTexture);
 	GR_DestroyTexture(g_fbTexture);
 	GR_DestroyTexture(g_offscreenRTTexture);
 #endif
@@ -434,7 +439,7 @@ void GR_BeginScene()
 
 #if USE_OPENGL
 #ifdef RENDERER_OGLES
-	glClearDepthf(1.0f);
+	//glClearDepthf(1.0f);
 #else
 	glClearDepth(1.0f);
 #endif
@@ -471,6 +476,7 @@ void GR_EndScene()
 //----------------------------------------------------------------------------------------
 
 unsigned short vram[VRAM_WIDTH * VRAM_HEIGHT];
+static u_char rgLUT[LUT_WIDTH * LUT_HEIGHT * sizeof(u_int)];
 
 void GR_ResetDevice()
 {
@@ -487,137 +493,155 @@ typedef struct
 	GLint projection3DLoc;
 	GLint bilinearFilterLoc;
 	GLint texelSizeLoc;
+	GLint texLoc;
+	GLint lutLoc;
 #endif
-} GTEShader;
+} PSXGPU_Shader;
 
-GTEShader g_gte_shader_4;
-GTEShader g_gte_shader_8;
-GTEShader g_gte_shader_16;
-GTEShader g_gte_shader_32_rgba;
+PSXGPU_Shader g_gpu_shader_4;
+PSXGPU_Shader g_gpu_shader_8;
+PSXGPU_Shader g_gpu_shader_16;
+PSXGPU_Shader g_gpu_shader_32_rgba;
 
 #if USE_OPENGL
 
 GLint u_projectionLoc;
 GLint u_projection3DLoc;
-GLint u_bilinearFilterLoc;
 GLint u_texelSizeLoc;
-
-#define GPU_PACK_RG\
-	"		float color_16 = (color_rg.y * 256.0 + color_rg.x) * 255.0;\n"
-
-#define GPU_DISCARD\
-	"		if (color_16 == 0.0) { discard; }\n"
-
-#define GPU_DECODE_RG\
-	"		fragColor = fract(floor(color_16 / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0);\n"
-
-#define GPU_PACK_RG_FUNC\
-	"	const float c_PackRange = 255.001;\n"\
-	"	float packRG(vec2 rg) { return (rg.y * 256.0 + rg.x) * c_PackRange;}\n"
-
-#define GPU_DECODE_RG_FUNC\
-	" vec4 decodeRG(float rg) {\n"\
-	" 	vec4 value = fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0);\n"\
-	" 	return vec4(value.xyz, rg == 0.0 ? rg : (1.0 - value.w * 16.0));\n"\
-	" }\n"
-	//"	vec4 decodeRG(float rg) { return fract(floor(rg / vec4(1.0, 32.0, 1024.0, 32768.0)) / 32.0); }\n"
-
-#if defined(RENDERER_OGL) || (OGLES_VERSION == 3)
-
-#	define GPU_DITHERING\
-		"		fragColor *= v_color;\n"\
-		"		mat4 dither = mat4(\n"\
-		"			-4.0,  +0.0,  -3.0,  +1.0,\n"\
-		"			+2.0,  -2.0,  +3.0,  -1.0,\n"\
-		"			-3.0,  +1.0,  -4.0,  +0.0,\n"\
-		"			+3.0,  -1.0,  +2.0,  -2.0) / 255.0;\n"\
-		"		ivec2 dc = ivec2(fract(gl_FragCoord.xy / 4.0) * 4.0);\n"\
-		"		fragColor.xyz += vec3(dither[dc.x][dc.y] * v_texcoord.w);\n"
-
-#	define GPU_ARRAY_FUNC\
-		"	float _idx2(vec2 array, int idx) { return array[idx]; }"
-
-#else
-
-#	define GPU_DITHERING\
-		"		fragColor *= v_color;\n"
-
-#	define GPU_ARRAY_FUNC\
-		"	float _idx2(vec2 array, int idx) { if(idx == 0) return array.x; else return array.y; }"
-
-#endif
 
 #define GPU_SAMPLE_TEXTURE_4BIT_FUNC\
     "   // returns 16 bit colour\n"\
-    "   float samplePSX(vec2 tc){\n"\
+    "   vec2 samplePSX(vec2 tc) {\n"\
     "       vec2 uv = (tc * vec2(0.25, 1.0) + v_page_clut.xy) * c_VRAMTexel;\n"\
     "       vec2 comp = VRAM(uv);\n"\
     "       int index = int(fract(tc.x / 4.0 + 0.0001) * 4.0);\n"\
-    "       float v = _idx2(comp, index / 2) * (c_PackRange / 16.0);\n"\
-    "       float f = floor(v);\n"\
+    "       float v = _idx2(comp, index / 2) * (255.0 / 16.0);\n"\
+    "       float f = floor(v + 0.001);\n"\
     "       vec2 c = vec2( (v - f) * 16.0, f );\n"\
     "       vec2 clut_pos = v_page_clut.zw;\n"\
     "       clut_pos.x += mix(c[0], c[1], mod(float(index), 2.0)) * c_VRAMTexel.x;\n"\
-    "       return packRG(VRAM(clut_pos));\n"\
+    "       return VRAM(clut_pos);\n"\
     "   }\n"
 
 #define GPU_SAMPLE_TEXTURE_8BIT_FUNC\
 	"	// returns 16 bit colour\n"\
-	"	float samplePSX(vec2 tc){\n"\
+	"	vec2 samplePSX(vec2 tc) {\n"\
 	"		vec2 uv = (tc * vec2(0.5, 1.0) + v_page_clut.xy) * c_VRAMTexel;\n"\
 	"		vec2 comp = VRAM(uv);\n"\
 	"		vec2 clut_pos = v_page_clut.zw;\n"\
 	"		int index = int(mod(tc.x, 2.0));\n"\
-	"		clut_pos.x += _idx2(comp, index) * c_PackRange * c_VRAMTexel.x;\n"\
+	"		clut_pos.x += _idx2(comp, index) * 255.0 * c_VRAMTexel.x;\n"\
 	"		vec2 color_rg = VRAM(clut_pos);\n"\
-	"		return packRG(VRAM(clut_pos));\n"\
+	"		return VRAM(clut_pos);\n"\
 	"	}\n"
 
 #define GPU_SAMPLE_TEXTURE_16BIT_FUNC\
-	"	float samplePSX(vec2 tc){\n"\
+	"	vec2 samplePSX(vec2 tc) {\n"\
 	"		vec2 uv = (tc + v_page_clut.xy) * c_VRAMTexel;\n"\
 	"		vec2 color_rg = VRAM(uv);\n"\
-	"		return packRG(color_rg);\n"\
+	"		return color_rg;\n"\
 	"	}\n"
-
-
-#define GPU_BILINEAR_SAMPLE_FUNC \
-	"	float c_textureSize = 1.0;\n"\
-	"	float c_onePixel = 1.0;\n"\
-	"	vec4 BilinearTextureSample(vec2 P) {\n"\
-	"		vec2 frac = fract(P);\n"\
-	"		vec2 pixel = floor(P);\n"\
-	"		float C11 = samplePSX(pixel);\n"\
-	"		float C21 = samplePSX(pixel + vec2(c_onePixel, 0.0));\n"\
-	"		float C12 = samplePSX(pixel + vec2(0.0, c_onePixel));\n"\
-	"		float C22 = samplePSX(pixel + vec2(c_onePixel, c_onePixel));\n"\
-	"		float ax1 = mix(float(C11 > 0.0), float(C21 > 0.0), frac.x);\n"\
-	"		float ax2 = mix(float(C12 > 0.0), float(C22 > 0.0), frac.x);\n"\
-	"		if(mix(ax1, ax2, frac.y) < 0.5) { discard; }\n"\
-	"		vec4 x1 = mix(decodeRG(C11), decodeRG(C21), frac.x);\n"\
-	"		vec4 x2 = mix(decodeRG(C12), decodeRG(C22), frac.x);\n"\
-	"		return mix(x1, x2, frac.y);\n"\
-	"	}\n"
-
-#define GPU_NEAREST_SAMPLE_FUNC \
-	"vec4 NearestTextureSample(vec2 P) {\n"\
-	"	float color_16 = samplePSX(P);\n"\
-	"	if(color_16 == 0.0) {discard;}\n"\
-	"	return decodeRG(color_16);\n"\
-	"}\n"
 
 #if (VRAM_FORMAT == GL_LUMINANCE_ALPHA)
-#define GPU_FETCH_VRAM_FUNC\
+
+#define GPU_FETCH_VRAM_FUNC \
+		"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"\
 		"	uniform sampler2D s_texture;\n"\
 		"	vec2 VRAM(vec2 uv) { return texture2D(s_texture, uv).ra; }\n"
 #else
-#define GPU_FETCH_VRAM_FUNC\
+
+#define GPU_FETCH_VRAM_FUNC \
+		"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"\
 		"	uniform sampler2D s_texture;\n"\
 		"	vec2 VRAM(vec2 uv) { return texture2D(s_texture, uv).rg; }\n"
 #endif
 
+#if defined(RENDERER_OGL) || (OGLES_VERSION == 3)
+
+#	define GPU_DITHERING \
+		"	const mat4 c_dither = mat4(\n"\
+		"		-4.0,  +0.0,  -3.0,  +1.0,\n"\
+		"		+2.0,  -2.0,  +3.0,  -1.0,\n"\
+		"		-3.0,  +1.0,  -4.0,  +0.0,\n"\
+		"		+3.0,  -1.0,  +2.0,  -2.0) / 255.0;\n"\
+		"	vec4 dither(vec4 color) {\n"\
+		"		ivec2 dc = ivec2(fract(gl_FragCoord.xy / 4.0) * 4.0);\n"\
+		"		color.xyz += vec3(c_dither[dc.x][dc.y] * v_texcoord.w);\n"\
+		"		return color;\n"\
+		"	}\n"
+
+#	define GPU_ARRAY_FUNC\
+		"	float _idx2(vec2 array, int idx) { return array[idx]; }\n"
+
+#else
+
+#	define GPU_DITHERING \
+		"	vec4 dither(vec4 color) { return color; }\n"
+
+#	define GPU_ARRAY_FUNC \
+		"	float _idx2(vec2 array, int idx) { return idx == 0 ? array.x : array.y; }\n"
+
+#endif
+
+#define GPU_FRAGMENT_SAMPLE_SHADER(bit) \
+	GPU_FETCH_VRAM_FUNC\
+	GPU_ARRAY_FUNC\
+	GPU_SAMPLE_TEXTURE_## bit ##BIT_FUNC\
+	"	uniform sampler2D s_rgLut;\n"\
+	"	const vec2 c_LUTTexel = vec2(1.0 / 256.0, 1.0 / 256.0);\n"\
+	"	vec4 lut(vec2 rg) { return texture2D(s_rgLut, rg - c_LUTTexel * 0.0001); }\n"\
+	"	vec4 bilinearTextureSample(vec2 P) {\n"\
+	"		vec2 frac = fract(P);\n"\
+	"		vec2 pixel = floor(P);\n"\
+	"		vec2 C11 = samplePSX(pixel);\n"\
+	"		vec2 C21 = samplePSX(pixel + vec2(1.0, 0.0));\n"\
+	"		vec2 C12 = samplePSX(pixel + vec2(0.0, 1.0));\n"\
+	"		vec2 C22 = samplePSX(pixel + vec2(1.0, 1.0));\n"\
+	"		float ax1 = mix(float(C11.r + C11.g > 0.0), float(C21.r + C21.g > 0.0), frac.x);\n"\
+	"		float ax2 = mix(float(C12.r + C12.g > 0.0), float(C22.r + C22.g > 0.0), frac.x);\n"\
+	"		float axm = mix(ax1, ax2, frac.y);\n"\
+	"		if(axm < 0.5) { discard; }\n"\
+	"		vec4 x1 = mix(lut(C11), lut(C21), frac.x);\n"\
+	"		vec4 x2 = mix(lut(C12), lut(C22), frac.x);\n"\
+	"		vec4 t = mix(x1, x2, frac.y);\n"\
+	"		t.w = 1.0 - t.w;\n"\
+	"		return t;\n"\
+	"	}\n"\
+	"	vec4 nearestTextureSample(vec2 P) {\n"\
+	"		vec2 rg = samplePSX(P);\n"\
+	"		float rgm = rg.x + rg.y;\n"\
+	"		if (rgm == 0.0) { discard; }\n"\
+	"		vec4 t = lut(rg);\n"\
+	"		t.w = 1.0 - t.w;\n"\
+	"		return t;\n"\
+	"	}\n"\
+	"	uniform int bilinearFilter;\n"\
+	"	void main() {\n"\
+	"		vec4 color = (bilinearFilter > 0) ? bilinearTextureSample(v_texcoord.xy) : nearestTextureSample(v_texcoord.xy);\n"\
+	"		fragColor = dither(color * v_color);\n"\
+	"	}\n"
+	
+static const char* gpu_shader_common = R"(
+	varying vec4 v_texcoord;
+	varying vec4 v_color;
+	varying vec4 v_page_clut;
+	varying float v_z;
+)";
+
+const char* gpu_shader_4 = GPU_FRAGMENT_SAMPLE_SHADER(4);
+const char* gpu_shader_8 = GPU_FRAGMENT_SAMPLE_SHADER(8);
+const char* gpu_shader_16 = GPU_FRAGMENT_SAMPLE_SHADER(16);
+const char* gpu_shader_32_rgba = 
+	"	uniform sampler2D s_texture;\n"\
+	"	uniform vec2 texelSize;\n"\
+	"	void main() {\n"\
+	"		vec2 tc = v_texcoord.xy * texelSize + texelSize * 0.5;\n"\
+	"		vec4 color = texture2D(s_texture, tc);\n"\
+	"		fragColor = dither(color * v_color);\n"\
+	"	}\n";
+
 #if USE_PGXP
-#define GTE_PERSPECTIVE_CORRECTION \
+#	define GTE_PERSPECTIVE_CORRECTION \
 		"	mat4 ofsMat = mat4(\n"\
 		"		vec4(1.0,  0.0,  0.0,  0.0),\n"\
 		"		vec4(0.0,  1.0,  0.0,  0.0),\n"\
@@ -627,7 +651,7 @@ GLint u_texelSizeLoc;
 		"	vec4 fragPosition = (a_zw.y > 100.0 ? ofsMat * (Projection3D * vec4((a_position.xy + geom_ofs) * vec2(1.0,-1.0) * a_zw.y, a_zw.x, 1.0)) : (Projection * vec4(a_position.xy, 0.5, 1.0)));\n" \
 		"	gl_Position = fragPosition;\n"
 #else
-#define GTE_PERSPECTIVE_CORRECTION \
+#	define GTE_PERSPECTIVE_CORRECTION \
 		"	gl_Position = Projection * vec4(a_position.xy, 0.0, 1.0);\n"
 #endif
 
@@ -654,76 +678,6 @@ GLint u_texelSizeLoc;
 	GTE_PERSPECTIVE_CORRECTION\
 	"		v_z = (gl_Position.z - 40.0) * 0.005;\n"\
 	"	}\n"
-
-#define GPU_FRAGMENT_SAMPLE_SHADER(bit) \
-	GPU_PACK_RG_FUNC\
-	GPU_DECODE_RG_FUNC\
-	GPU_FETCH_VRAM_FUNC\
-	"	const vec2 c_VRAMTexel = vec2(1.0 / 1024.0, 1.0 / 512.0);\n"\
-	GPU_ARRAY_FUNC\
-	GPU_SAMPLE_TEXTURE_## bit ##BIT_FUNC\
-	GPU_BILINEAR_SAMPLE_FUNC\
-	GPU_NEAREST_SAMPLE_FUNC\
-	"	uniform int bilinearFilter;\n"\
-	"	void main() {\n"\
-	"		if(bilinearFilter > 0)\n"\
-	"			fragColor = BilinearTextureSample(v_texcoord.xy);\n"\
-	"		else\n"\
-	"			fragColor = NearestTextureSample(v_texcoord.xy);\n"\
-	"		\n"\
-	GPU_DITHERING\
-	"	}\n"
-
-const char* gte_shader_4 =
-	"varying vec4 v_texcoord;\n"
-	"varying vec4 v_color;\n"
-	"varying vec4 v_page_clut;\n"
-	"varying float v_z;\n"
-	"#ifdef VERTEX\n"
-	GTE_VERTEX_SHADER
-	"#else\n"
-	GPU_FRAGMENT_SAMPLE_SHADER(4)
-	"#endif\n";
-
-const char* gte_shader_8 =
-	"varying vec4 v_texcoord;\n"
-	"varying vec4 v_color;\n"
-	"varying vec4 v_page_clut;\n"
-	"varying float v_z;\n"
-	"#ifdef VERTEX\n"
-	GTE_VERTEX_SHADER
-	"#else\n"
-	GPU_FRAGMENT_SAMPLE_SHADER(8)
-	"#endif\n";
-
-const char* gte_shader_16 =
-	"varying vec4 v_texcoord;\n"
-	"varying vec4 v_color;\n"
-	"varying vec4 v_page_clut;\n"
-	"varying float v_z;\n"
-	"#ifdef VERTEX\n"
-	GTE_VERTEX_SHADER
-	"#else\n"
-	GPU_FRAGMENT_SAMPLE_SHADER(16)
-	"#endif\n";
-
-const char* gte_shader_32_rgba = 
-	"varying vec4 v_texcoord;\n"
-	"varying vec4 v_color;\n"
-	"varying vec4 v_page_clut;\n"
-	"varying float v_z;\n"
-	"#ifdef VERTEX\n"
-	GTE_VERTEX_SHADER
-	"#else\n"
-	"	uniform sampler2D s_texture;\n"\
-	"	uniform int bilinearFilter;\n"\
-	"	uniform vec2 texelSize;\n"\
-	"	void main() {\n"\
-	"		vec2 tc = v_texcoord.xy * texelSize + texelSize * 0.5;\n"\
-	"		fragColor = texture2D(s_texture, tc);\n"\
-	GPU_DITHERING\
-	"	}\n"
-	"#endif\n";
 
 int GR_Shader_CheckShaderStatus(GLuint shader)
 {
@@ -765,54 +719,57 @@ int GR_Shader_CheckProgramStatus(GLuint program)
 	return 0;
 }
 
-ShaderID GR_Shader_Compile(const char* source)
+ShaderID GR_Shader_Compile(const char* source, bool isPsxShader)
 {
 #if defined(ES2_SHADERS)
-	const char* GLSL_HEADER_VERT =
-		"#version 100\n"
-		"precision lowp  int;\n"
-		"precision highp float;\n"
-		"#define VERTEX\n";
+	const char* GLSL_HEADER_VERT = R"(
+		#version 100
+		precision lowp  int;
+		precision highp float;
+	)";
 
-	const char* GLSL_HEADER_FRAG =
-		"#version 100\n"
-		"precision lowp  int;\n"
-		"precision highp float;\n"
-		"#define fragColor gl_FragColor\n";
+	const char* GLSL_HEADER_FRAG = R"(
+		#version 100
+		precision lowp  int;
+		precision highp float;
+		#define fragColor gl_FragColor
+	)";
 #elif defined(ES3_SHADERS)
-	const char* GLSL_HEADER_VERT =
-		"#version 300 es\n"
-		"precision lowp  int;\n"
-		"precision highp float;\n"
-		"#define VERTEX\n"
-		"#define varying   out\n"
-		"#define attribute in\n"
-		"#define texture2D texture\n";
+	const char* GLSL_HEADER_VERT = R"(
+		#version 300 es
+		precision lowp  int;
+		precision highp float;
+		#define varying   out
+		#define attribute in
+		#define texture2D texture
+	)";
 
-	const char* GLSL_HEADER_FRAG =
-		"#version 300 es\n"
-		"precision lowp  int;\n"
-		"precision highp float;\n"
-		"#define varying     in\n"
-		"#define texture2D   texture\n"
-		"out vec4 fragColor;\n";
+	const char* GLSL_HEADER_FRAG = R"(
+		#version 300 es
+		precision lowp  int;
+		precision highp float;
+		#define varying     in
+		#define texture2D   texture
+		out vec4 fragColor;
+	)";
 #else
-	const char* GLSL_HEADER_VERT =
-		"#version 140\n"
-		"precision lowp  int;\n"
-		"precision highp float;\n"
-		"#define VERTEX\n"
-		"#define varying   out\n"
-		"#define attribute in\n"
-		"#define texture2D texture\n";
+	const char* GLSL_HEADER_VERT = R"(
+		#version 140
+		precision lowp  int;
+		precision highp float;
+		#define varying   out
+		#define attribute in
+		#define texture2D texture
+	)";
 
-	const char* GLSL_HEADER_FRAG =
-		"#version 140\n"
-		"precision lowp  int;\n"
-		"precision highp float;\n"
-		"#define varying     in\n"
-		"#define texture2D   texture\n"
-		"out vec4 fragColor;\n";
+	const char* GLSL_HEADER_FRAG = R"(
+		#version 140
+		precision lowp  int;
+		precision highp float;
+		#define varying     in
+		#define texture2D   texture
+		out vec4 fragColor;
+	)";
 #endif
 
 	char extra_vs_defines[1024];
@@ -820,19 +777,48 @@ ShaderID GR_Shader_Compile(const char* source)
 	extra_vs_defines[0] = 0;
 	extra_fs_defines[0] = 0;
 
+	strcat(extra_vs_defines, "#define VERTEX\n");
+	strcat(extra_fs_defines, "#define FRAGMENT\n");
 	if (g_cfg_bilinearFiltering)
 	{
 		strcat(extra_fs_defines, "#define BILINEAR_FILTER\n");
 	}
 
-	const char* vs_list[] = { GLSL_HEADER_VERT, extra_vs_defines, source };
-	const char* fs_list[] = { GLSL_HEADER_FRAG, extra_fs_defines, source };
+	const char* vs_list_psx[] = { 
+		GLSL_HEADER_VERT,
+		extra_vs_defines,
+		gpu_shader_common,
+		GTE_VERTEX_SHADER
+	};
+	const char* fs_list_psx[] = {
+		GLSL_HEADER_FRAG,
+		extra_fs_defines,
+		gpu_shader_common,
+		GPU_DITHERING,
+		source
+	};
+
+	const char* vs_list_src[] = { 
+		GLSL_HEADER_VERT,
+		extra_vs_defines,
+		source,
+	};
+	const char* fs_list_src[] = {
+		GLSL_HEADER_FRAG,
+		extra_fs_defines,
+		source
+	};
+
+	const char** vs_list = isPsxShader ? vs_list_psx : vs_list_src;
+	const char** fs_list = isPsxShader ? fs_list_psx : fs_list_src;
+	const int vs_list_cnt = isPsxShader ? 4 : 3;
+	const int fs_list_cnt = isPsxShader ? 5 : 3;
 
 	GLuint program = glCreateProgram();
 
 	{
 		GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertexShader, 3, vs_list, NULL);
+		glShaderSource(vertexShader, vs_list_cnt, vs_list, NULL);
 		glCompileShader(vertexShader);
 
 		if( GR_Shader_CheckShaderStatus(vertexShader) == 0 )
@@ -844,7 +830,7 @@ ShaderID GR_Shader_Compile(const char* source)
 
 	{
 		GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragmentShader, 3, fs_list, NULL);
+		glShaderSource(fragmentShader, fs_list_cnt, fs_list, NULL);
 		glCompileShader(fragmentShader);
 
 		if(GR_Shader_CheckShaderStatus(fragmentShader) == 0)
@@ -868,6 +854,7 @@ ShaderID GR_Shader_Compile(const char* source)
 
 	GLint sampler = 0;
 	glUseProgram(program);
+	glUniform1iv(glGetUniformLocation(program, "s_rgLut"), 1, &sampler);
 	glUniform1iv(glGetUniformLocation(program, "s_texture"), 1, &sampler);
 	glUseProgram(0);
 
@@ -881,7 +868,7 @@ ShaderID GR_Shader_Compile(const char* source)
 
 void GR_GenerateCommonTextures()
 {
-	unsigned int pixelData = 0xFFFFFFFF;
+	unsigned int whitePixelData = 0xFFFFFFFF;
 
 #if USE_OPENGL
 	glGenTextures(1, &g_whiteTexture);
@@ -890,7 +877,20 @@ void GR_GenerateCommonTextures()
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &pixelData);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &whitePixelData);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+
+	glGenTextures(1, &g_rgLutTexture);
+	{
+		glBindTexture(GL_TEXTURE_2D, g_rgLutTexture);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LUT_WIDTH, LUT_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, &rgLUT);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -916,15 +916,16 @@ TextureID GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/
 	return newTexture;
 }
 
-void GR_CompilePSXShader(GTEShader* sh, const char* source)
+void GR_CompilePSXShader(PSXGPU_Shader* sh, const char* source)
 {
-	sh->shader = GR_Shader_Compile(source);
+	sh->shader = GR_Shader_Compile(source, true);
 
 #if USE_OPENGL
-	
 	sh->bilinearFilterLoc = glGetUniformLocation(sh->shader, "bilinearFilter");
 	sh->projectionLoc = glGetUniformLocation(sh->shader, "Projection");
 	sh->texelSizeLoc = glGetUniformLocation(sh->shader, "texelSize");
+	sh->texLoc = glGetUniformLocation(sh->shader, "s_texture");
+	sh->lutLoc = glGetUniformLocation(sh->shader, "s_rgLut");
 #if USE_PGXP
 	sh->projection3DLoc = glGetUniformLocation(sh->shader, "Projection3D");
 #endif
@@ -933,15 +934,33 @@ void GR_CompilePSXShader(GTEShader* sh, const char* source)
 
 void GR_InitialisePSXShaders()
 {
-	GR_CompilePSXShader(&g_gte_shader_4, gte_shader_4);
-	GR_CompilePSXShader(&g_gte_shader_8, gte_shader_8);
-	GR_CompilePSXShader(&g_gte_shader_16, gte_shader_16);
-	GR_CompilePSXShader(&g_gte_shader_32_rgba, gte_shader_32_rgba);
+	GR_CompilePSXShader(&g_gpu_shader_4, gpu_shader_4);
+	GR_CompilePSXShader(&g_gpu_shader_8, gpu_shader_8);
+	GR_CompilePSXShader(&g_gpu_shader_16, gpu_shader_16);
+	GR_CompilePSXShader(&g_gpu_shader_32_rgba, gpu_shader_32_rgba);
+}
+
+void GR_InitRG8LUT()
+{
+	for (u_short y = 0; y < LUT_HEIGHT; y++)
+	{
+		u_char* row = rgLUT + y * (LUT_HEIGHT * 4);
+		for (u_short x = 0; x < LUT_WIDTH; x++)
+		{
+			const u_short c = (y << 8) | x;
+			u_char* pixel = row + x * 4;
+			pixel[0] = (u_char)((c & 31)) << 3;
+			pixel[1] = (u_char)((c >> 5) & 31) << 3;
+			pixel[2] = (u_char)((c >> 10) & 31) << 3;
+			pixel[3] = (u_char)((c >> 15) & 1) << 7;
+		}
+	}
 }
 
 int GR_InitialisePSX()
 {
 	SDL_memset(vram, 0, VRAM_WIDTH * VRAM_HEIGHT * sizeof(unsigned short));
+	GR_InitRG8LUT();
 	GR_GenerateCommonTextures();
 	GR_InitialisePSXShaders();
 
@@ -1217,35 +1236,46 @@ void GR_SetShader(const ShaderID shader)
 
 void GR_SetTexture(TextureID texture, TexFormat texFormat)
 {
+	GLint texLoc = 0;
+	GLint lutLoc = 0;
+	GLint bilinearFilterLoc = 0;
 	switch (texFormat)
 	{
 	case TF_4_BIT:
-		GR_SetShader(g_gte_shader_4.shader);
-		u_bilinearFilterLoc = g_gte_shader_4.bilinearFilterLoc;
-		u_projectionLoc = g_gte_shader_4.projectionLoc;
-		u_projection3DLoc = g_gte_shader_4.projection3DLoc;
+		GR_SetShader(g_gpu_shader_4.shader);
+		bilinearFilterLoc = g_gpu_shader_4.bilinearFilterLoc;
+		u_projectionLoc = g_gpu_shader_4.projectionLoc;
+		u_projection3DLoc = g_gpu_shader_4.projection3DLoc;
+		texLoc = g_gpu_shader_4.texLoc;
+		lutLoc = g_gpu_shader_4.lutLoc;
 		u_texelSizeLoc = -1;
 		break;
 	case TF_8_BIT:
-		GR_SetShader(g_gte_shader_8.shader);
-		u_bilinearFilterLoc = g_gte_shader_8.bilinearFilterLoc;
-		u_projectionLoc = g_gte_shader_8.projectionLoc;
-		u_projection3DLoc = g_gte_shader_8.projection3DLoc;
+		GR_SetShader(g_gpu_shader_8.shader);
+		bilinearFilterLoc = g_gpu_shader_8.bilinearFilterLoc;
+		u_projectionLoc = g_gpu_shader_8.projectionLoc;
+		u_projection3DLoc = g_gpu_shader_8.projection3DLoc;
+		texLoc = g_gpu_shader_8.texLoc;
+		lutLoc = g_gpu_shader_8.lutLoc;
 		u_texelSizeLoc = -1;
 		break;
 	case TF_16_BIT:
-		GR_SetShader(g_gte_shader_16.shader);
-		u_bilinearFilterLoc = g_gte_shader_16.bilinearFilterLoc;
-		u_projectionLoc = g_gte_shader_16.projectionLoc;
-		u_projection3DLoc = g_gte_shader_16.projection3DLoc;
+		GR_SetShader(g_gpu_shader_16.shader);
+		bilinearFilterLoc = g_gpu_shader_16.bilinearFilterLoc;
+		u_projectionLoc = g_gpu_shader_16.projectionLoc;
+		u_projection3DLoc = g_gpu_shader_16.projection3DLoc;
+		texLoc = g_gpu_shader_16.texLoc;
+		lutLoc = g_gpu_shader_16.lutLoc;
 		u_texelSizeLoc = -1;
 		break;
 	case TF_32_BIT_RGBA:
-		GR_SetShader(g_gte_shader_32_rgba.shader);
-		u_bilinearFilterLoc = -1;
-		u_projectionLoc = g_gte_shader_32_rgba.projectionLoc;
-		u_projection3DLoc = g_gte_shader_32_rgba.projection3DLoc;
-		u_texelSizeLoc = g_gte_shader_32_rgba.texelSizeLoc;
+		GR_SetShader(g_gpu_shader_32_rgba.shader);
+		bilinearFilterLoc = -1;
+		u_projectionLoc = g_gpu_shader_32_rgba.projectionLoc;
+		u_projection3DLoc = g_gpu_shader_32_rgba.projection3DLoc;
+		texLoc = g_gpu_shader_32_rgba.texLoc;
+		lutLoc = -1;
+		u_texelSizeLoc = g_gpu_shader_32_rgba.texelSizeLoc;
 		break;
 	}
 
@@ -1258,10 +1288,19 @@ void GR_SetTexture(TextureID texture, TexFormat texFormat)
 	}
 
 #if USE_OPENGL
-	glBindTexture(GL_TEXTURE_2D, texture);
-	if(u_bilinearFilterLoc != -1)
-		glUniform1i(u_bilinearFilterLoc, g_cfg_bilinearFiltering);
+	glUniform1i(texLoc, 0);
+	glUniform1i(lutLoc, 1);
 
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, g_rgLutTexture);
+
+	glActiveTexture(GL_TEXTURE0);
+
+	if(bilinearFilterLoc != -1)
+		glUniform1i(bilinearFilterLoc, g_cfg_bilinearFiltering);
 #endif
 
 	g_lastBoundTexture = texture;
