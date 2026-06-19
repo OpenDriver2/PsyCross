@@ -719,7 +719,7 @@ int GR_Shader_CheckProgramStatus(GLuint program)
 	return 0;
 }
 
-ShaderID GR_Shader_Compile(const char* source, bool isPsxShader)
+ShaderID GR_Shader_Compile(const char* source, int isPsxShader)
 {
 #if defined(ES2_SHADERS)
 	const char* GLSL_HEADER_VERT = R"(

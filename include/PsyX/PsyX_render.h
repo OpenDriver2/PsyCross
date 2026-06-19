@@ -189,7 +189,7 @@ extern void			GR_UpdateVRAM();
 extern void			GR_ReadFramebufferDataToVRAM();
 
 extern TextureID	GR_CreateRGBATexture(int width, int height, u_char* data /*= nullptr*/);
-extern ShaderID		GR_Shader_Compile(const char* source, bool isPsxShader);
+extern ShaderID		GR_Shader_Compile(const char* source, int isPsxShader);
 
 extern void			GR_SetShader(const ShaderID shader);
 extern void			GR_Perspective3D(const float fov, const float width, const float height, const float zNear, const float zFar);
