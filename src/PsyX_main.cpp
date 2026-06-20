@@ -670,8 +670,13 @@ void PsyX_SetCursorPosition(int x, int y)
 	SDL_WarpMouseInWindow(g_window, x, y);
 }
 
+extern void PsyX_SetCursorRelative(int enable)
+{
+	SDL_SetRelativeMouseMode((SDL_bool)enable);
+}
+
 void PsyX_Sys_DoDebugKeys(int nKey, char down); // forward decl
-void PsyX_Sys_DoDebugMouseMotion(int x, int y);
+void PsyX_Sys_DoDebugMouseMotion(int x, int y, int dx, int dy);
 
 void PsyX_Exit();
 
@@ -709,7 +714,7 @@ void PsyX_Sys_DoPollEvent()
 				break;
 			case SDL_MOUSEMOTION:
 
-				PsyX_Sys_DoDebugMouseMotion(event.motion.x, event.motion.y);
+				PsyX_Sys_DoDebugMouseMotion(event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel);
 				break;
 			case SDL_KEYDOWN:
 			case SDL_KEYUP:
@@ -859,10 +864,10 @@ void PsyX_TakeScreenshot()
 }
 #endif
 
-void PsyX_Sys_DoDebugMouseMotion(int x, int y)
+void PsyX_Sys_DoDebugMouseMotion(int x, int y, int dx, int dy)
 {
 	if (g_dbg_gameDebugMouse)
-		g_dbg_gameDebugMouse(x, y);
+		g_dbg_gameDebugMouse(x, y, dx, dy);
 }
 
 void PsyX_Sys_DoDebugKeys(int nKey, char down)

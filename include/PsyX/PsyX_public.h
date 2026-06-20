@@ -37,7 +37,7 @@ typedef struct
 } PsyXControllerMapping;
 
 typedef void(*GameDebugKeysHandlerFunc)(int nKey, char down);
-typedef void(*GameDebugMouseHandlerFunc)(int x, int y);
+typedef void(*GameDebugMouseHandlerFunc)(int x, int y, int dx, int dy);
 typedef void(*GameOnTextInputHandler)(const char* buf);
 
 //------------------------------------------------------------------------
@@ -75,6 +75,9 @@ extern void PsyX_GetScreenSize(int* screenWidth, int* screenHeight);
 
 /* Sets mouse cursor position */
 extern void PsyX_SetCursorPosition(int x, int y);
+
+/* Sets mouse relative movement */
+extern void PsyX_SetCursorRelative(int enable);
 
 /* Usually called after ClearOTag/ClearOTagR */
 extern char PsyX_BeginScene(void);
