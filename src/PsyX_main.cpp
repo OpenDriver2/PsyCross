@@ -835,6 +835,8 @@ void PsyX_EndScene()
 	GR_StoreFrameBuffer(activeDispEnv.disp.x, activeDispEnv.disp.y, activeDispEnv.disp.w, activeDispEnv.disp.h);
 
 	GR_SwapWindow();
+	
+	SDL_Delay(0);
 }
 
 #if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
