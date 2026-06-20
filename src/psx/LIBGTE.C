@@ -134,7 +134,7 @@ void RotTransSV(SVECTOR* v0, SVECTOR* v1, long* flag)
 	gte_stflg(flag);
 }
 
-int RotTransPers(SVECTOR* v0, int* sxy, long* p, long* flag)
+int RotTransPers(SVECTOR* v0, long* sxy, long* p, long* flag)
 {
 	int sz;
 	gte_RotTransPers(v0, sxy, p, flag, &sz);

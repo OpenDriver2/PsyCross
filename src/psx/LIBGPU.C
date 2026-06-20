@@ -561,7 +561,7 @@ void CatPrim(void* p0, void* p1)
 	catPrim(p0, p1);
 }
 
-u_short LoadTPage(u_int* pix, int tp, int abr, int x, int y, int w, int h)
+u_short LoadTPage(u_long* pix, int tp, int abr, int x, int y, int w, int h)
 {
 	RECT16 imageArea;
 	imageArea.x = x;

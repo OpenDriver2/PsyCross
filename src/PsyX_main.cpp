@@ -25,6 +25,7 @@
 #include "PsyX/PsyX_render.h"
 
 #ifdef _WIN32
+#include <windows.h>
 #include <pla.h>
 #endif // _WIN32
 
@@ -269,7 +270,8 @@ static void PsyX_Sys_InitialiseInput()
 }
 
 #ifdef __GNUC__
-#define _stricmp(s1, s2) strcasecmp(s1, s2)
+// should be strcasecmp, but this one never existed in C's std, and all the usage-cases don't seem to fail on Linux/Mingw.
+#define _stricmp(s1, s2) strcmp(s1, s2)
 #endif
 
 // Keyboard mapping lookup
