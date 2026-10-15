@@ -18,7 +18,7 @@
 #define GET_CLUT_X(clut)        ((clut & 0x3F) << 4)
 #define GET_CLUT_Y(clut)        (clut >> 6)
 
-OT_TAG prim_terminator = { -1, 0 }; // P_TAG with zero primLength
+OT_TAG prim_terminator = { (uintptr_t)-1, 0 }; // P_TAG with zero primLength
 
 DISPENV currentDispEnv;
 DISPENV activeDispEnv;

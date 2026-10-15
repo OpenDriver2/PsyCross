@@ -2,6 +2,10 @@
 #define LIBGPU_H
 
 #include "types.h"
+
+#if !defined(__cplusplus) && !defined(static_assert)
+#include <assert.h> /* static_assert, from C11 on */
+#endif
 #include "PsyX/common/pgxp_defs.h"
 
 extern	int (*GPU_printf)(const char *fmt, ...);
@@ -841,7 +845,7 @@ extern u_short GetClut(int x, int y);
 extern u_short GetTPage(int tp, int abr, int x, int y);
 extern u_short LoadClut(u_long*clut, int x, int y);
 extern u_short LoadClut2(u_long*clut, int x, int y);
-extern u_short LoadTPage(u_long*pix, int tp, int abr, int x, int y, int w, int h);
+extern u_short LoadTPage(u_int* pix, int tp, int abr, int x, int y, int w, int h);
 extern void *NextPrim(void *p);
 extern void AddPrim(void *ot, void *p);
 extern void AddPrims(void *ot, void *p0, void *p1);
